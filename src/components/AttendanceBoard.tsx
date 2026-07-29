@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { STATUSES, STATUS_LABEL, type Status } from "@/lib/attendance";
 
-type Participant = { id: string; name: string };
+type Participant = { id: string; name: string; grade?: string | null };
 type Group = { id: string; name: string; participants: Participant[] };
 
 function localToday(): string {
@@ -146,15 +146,24 @@ export default function AttendanceBoard({ groups }: { groups: Group[] }) {
           {group.participants.length === 0 ? (
             <p className="px-4 py-4 text-sm text-slate-400">אין משתתפים בקבוצה</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {group.participants.map((p) => {
+            <ul>
+              {group.participants.map((p, i) => {
                 const current = statuses[p.id];
                 return (
                   <li
                     key={p.id}
-                    className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    className={`flex flex-col gap-2 border-b border-slate-200 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between ${
+                      i % 2 === 1 ? "bg-slate-50" : "bg-white"
+                    }`}
                   >
-                    <span className="font-medium text-slate-800">{p.name}</span>
+                    <span className="flex items-center gap-2 font-medium text-slate-800">
+                      {p.name}
+                      {p.grade && (
+                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          {p.grade}
+                        </span>
+                      )}
+                    </span>
                     <div className="flex gap-2">
                       {STATUSES.map((st) => {
                         const active = current === st;

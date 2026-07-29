@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Participant = { id: string; name: string };
+type Participant = { id: string; name: string; grade?: string | null };
 type Group = { id: string; name: string; participants: Participant[] };
 
 export default function RosterManager({
@@ -51,14 +51,14 @@ export default function RosterManager({
     }
   }
 
-  async function addParticipant(groupId: string, name: string) {
+  async function addParticipant(groupId: string, name: string, grade: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
     try {
       const res = await fetch("/api/participants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, groupId }),
+        body: JSON.stringify({ name: trimmed, grade: grade.trim(), groupId }),
       });
       if (!res.ok) throw new Error();
       const participant = await res.json();
@@ -71,6 +71,34 @@ export default function RosterManager({
       );
     } catch {
       setError("הוספת המשתתף נכשלה");
+    }
+  }
+
+  async function updateGrade(groupId: string, id: string, grade: string) {
+    const prev = groups;
+    const value = grade.trim() || null;
+    setGroups((g) =>
+      g.map((grp) =>
+        grp.id === groupId
+          ? {
+              ...grp,
+              participants: grp.participants.map((p) =>
+                p.id === id ? { ...p, grade: value } : p,
+              ),
+            }
+          : grp,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/participants/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grade: grade.trim() }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setGroups(prev);
+      setError("עדכון הכיתה נכשל");
     }
   }
 
@@ -130,7 +158,10 @@ export default function RosterManager({
           key={group.id}
           group={group}
           onDeleteGroup={() => deleteGroup(group.id)}
-          onAddParticipant={(name) => addParticipant(group.id, name)}
+          onAddParticipant={(name, grade) =>
+            addParticipant(group.id, name, grade)
+          }
+          onUpdateGrade={(id, grade) => updateGrade(group.id, id, grade)}
           onDeleteParticipant={(id) => deleteParticipant(group.id, id)}
         />
       ))}
@@ -142,25 +173,34 @@ function GroupCard({
   group,
   onDeleteGroup,
   onAddParticipant,
+  onUpdateGrade,
   onDeleteParticipant,
 }: {
   group: Group;
   onDeleteGroup: () => void;
-  onAddParticipant: (name: string) => void;
+  onAddParticipant: (name: string, grade: string) => void;
+  onUpdateGrade: (id: string, grade: string) => void;
   onDeleteParticipant: (id: string) => void;
 }) {
   const [name, setName] = useState("");
+  const [grade, setGrade] = useState("");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    onAddParticipant(name);
+    onAddParticipant(name, grade);
     setName("");
+    setGrade("");
   }
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-        <h2 className="text-lg font-bold text-slate-900">{group.name}</h2>
+        <h2 className="text-lg font-bold text-slate-900">
+          {group.name}
+          <span className="mr-2 text-sm font-normal text-slate-400">
+            ({group.participants.length})
+          </span>
+        </h2>
         <button
           onClick={onDeleteGroup}
           className="rounded-lg px-3 py-2 text-sm font-medium text-absent hover:bg-red-50"
@@ -169,13 +209,27 @@ function GroupCard({
         </button>
       </div>
 
-      <ul className="divide-y divide-slate-100">
-        {group.participants.map((p) => (
+      <ul>
+        {group.participants.map((p, i) => (
           <li
             key={p.id}
-            className="flex items-center justify-between px-4 py-3"
+            className={`flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 last:border-b-0 ${
+              i % 2 === 1 ? "bg-slate-50" : "bg-white"
+            }`}
           >
-            <span className="font-medium text-slate-800">{p.name}</span>
+            <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
+              {p.name}
+            </span>
+            <input
+              defaultValue={p.grade ?? ""}
+              onBlur={(e) => {
+                if ((e.target.value.trim() || null) !== (p.grade ?? null)) {
+                  onUpdateGrade(p.id, e.target.value);
+                }
+              }}
+              placeholder="כיתה"
+              className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm"
+            />
             <button
               onClick={() => onDeleteParticipant(p.id)}
               className="rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
@@ -190,12 +244,21 @@ function GroupCard({
         )}
       </ul>
 
-      <form onSubmit={submit} className="flex gap-2 border-t border-slate-100 p-3">
+      <form
+        onSubmit={submit}
+        className="flex gap-2 border-t border-slate-100 p-3"
+      >
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="שם משתתף/ת"
           className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
+        />
+        <input
+          value={grade}
+          onChange={(e) => setGrade(e.target.value)}
+          placeholder="כיתה"
+          className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-base"
         />
         <button
           type="submit"

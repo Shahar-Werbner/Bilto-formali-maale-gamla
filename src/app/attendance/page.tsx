@@ -16,7 +16,11 @@ export default async function AttendancePage() {
   const plain = groups.map((g) => ({
     id: g.id,
     name: g.name,
-    participants: g.participants.map((p) => ({ id: p.id, name: p.name })),
+    participants: g.participants.map((p) => ({
+      id: p.id,
+      name: p.name,
+      grade: p.grade,
+    })),
   }));
 
   return (

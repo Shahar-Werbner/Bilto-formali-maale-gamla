@@ -11,6 +11,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const groupId = typeof body?.groupId === "string" ? body.groupId : "";
+  const grade =
+    typeof body?.grade === "string" && body.grade.trim()
+      ? body.grade.trim()
+      : null;
 
   if (!name || !groupId) {
     return NextResponse.json(
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   const participant = await prisma.participant.create({
-    data: { name, groupId },
+    data: { name, grade, groupId },
   });
   return NextResponse.json(participant, { status: 201 });
 }
