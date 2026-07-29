@@ -1,11 +1,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import AppHeader from "@/components/AppHeader";
-import AttendanceBoard from "@/components/AttendanceBoard";
+import NewEventForm from "@/components/NewEventForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function AttendancePage() {
+export default async function NewEventPage() {
   const session = await auth();
 
   const groups = await prisma.group.findMany({
@@ -25,9 +25,10 @@ export default async function AttendancePage() {
 
   return (
     <>
-      <AppHeader active="/attendance" userName={session?.user?.name} />
+      <AppHeader active="/events" userName={session?.user?.name} />
       <main className="mx-auto max-w-3xl px-4 py-4">
-        <AttendanceBoard groups={plain} />
+        <h1 className="mb-4 text-xl font-bold text-slate-900">אירוע חדש</h1>
+        <NewEventForm groups={plain} />
       </main>
     </>
   );

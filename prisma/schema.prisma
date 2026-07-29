@@ -23,6 +23,7 @@ model User {
   role         String             @default("staff") // "staff" | "parent" (future)
   passwordHash String?
   attendance   AttendanceRecord[] @relation("MarkedBy")
+  eventMarks   EventAttendance[]  @relation("EventMarkedBy")
   createdAt    DateTime           @default(now())
 }
 
@@ -40,6 +41,8 @@ model Participant {
   groupId    String
   group      Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
   attendance AttendanceRecord[]
+  events     Event[]            @relation("EventParticipants")
+  eventMarks EventAttendance[]
   createdAt  DateTime           @default(now())
 
   @@index([groupId])
@@ -58,4 +61,50 @@ model AttendanceRecord {
 
   @@unique([date, participantId])
   @@index([date])
+}
+
+// ── Events ──────────────────────────────────────────────────────────────────
+// An Event (e.g. a camp) spans a date range. Its EventDays are the concrete
+// days attendance is taken on (weekends excluded unless explicitly included).
+// Each event has its own selected list of participants.
+
+model Event {
+  id              String        @id @default(cuid())
+  name            String
+  startDate       DateTime      @db.Date
+  endDate         DateTime      @db.Date
+  includeFriday   Boolean       @default(false)
+  includeSaturday Boolean       @default(false)
+  participants    Participant[] @relation("EventParticipants")
+  days            EventDay[]
+  createdAt       DateTime      @default(now())
+}
+
+model EventDay {
+  id          String            @id @default(cuid())
+  eventId     String
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  date        DateTime          @db.Date
+  description String? // תיאור פעילות — free text, later AI-generated
+  attendance  EventAttendance[]
+  createdAt   DateTime          @default(now())
+
+  @@unique([eventId, date])
+  @@index([eventId])
+}
+
+model EventAttendance {
+  id             String      @id @default(cuid())
+  eventDayId     String
+  eventDay       EventDay    @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  status         String // "present" | "late" | "absent"
+  markedByUserId String?
+  markedBy       User?       @relation("EventMarkedBy", fields: [markedByUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([eventDayId, participantId])
+  @@index([eventDayId])
 }

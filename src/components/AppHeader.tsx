@@ -2,7 +2,7 @@ import Link from "next/link";
 import SignOutButton from "./SignOutButton";
 
 const NAV = [
-  { href: "/attendance", label: "נוכחות" },
+  { href: "/events", label: "אירועים" },
   { href: "/roster", label: "קבוצות" },
   { href: "/history", label: "היסטוריה" },
 ];
