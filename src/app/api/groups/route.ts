@@ -1,0 +1,35 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/api-auth";
+
+// GET /api/groups — all groups with their participants.
+export async function GET() {
+  const { response } = await requireSession();
+  if (response) return response;
+
+  const groups = await prisma.group.findMany({
+    orderBy: { createdAt: "asc" },
+    include: {
+      participants: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  return NextResponse.json(groups);
+}
+
+// POST /api/groups — create a group. Body: { name }
+export async function POST(request: Request) {
+  const { response } = await requireSession();
+  if (response) return response;
+
+  const body = await request.json().catch(() => null);
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (!name) {
+    return NextResponse.json({ error: "שם קבוצה חסר" }, { status: 400 });
+  }
+
+  const group = await prisma.group.create({
+    data: { name },
+    include: { participants: true },
+  });
+  return NextResponse.json(group, { status: 201 });
+}

@@ -1,0 +1,60 @@
+// Prisma schema — Maale Gamla attendance system (Phase 1)
+// Models mirror the brief. `passwordHash` was added to User to support
+// password-based login (see README — auth decision). The `role` field is a
+// plain String seeded to "staff" so a future "parent" role can be added
+// without a structural migration.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Neon pools connections; migrations need a direct (non-pooled) URL.
+  // If you only have one URL, point both at it.
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String             @id @default(cuid())
+  email        String             @unique
+  name         String
+  role         String             @default("staff") // "staff" | "parent" (future)
+  passwordHash String?
+  attendance   AttendanceRecord[] @relation("MarkedBy")
+  createdAt    DateTime           @default(now())
+}
+
+model Group {
+  id           String        @id @default(cuid())
+  name         String
+  participants Participant[]
+  createdAt    DateTime      @default(now())
+}
+
+model Participant {
+  id         String             @id @default(cuid())
+  name       String
+  groupId    String
+  group      Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  attendance AttendanceRecord[]
+  createdAt  DateTime           @default(now())
+
+  @@index([groupId])
+}
+
+model AttendanceRecord {
+  id             String      @id @default(cuid())
+  date           DateTime    @db.Date
+  status         String // "present" | "late" | "absent"
+  participantId  String
+  participant    Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  markedByUserId String?
+  markedBy       User?       @relation("MarkedBy", fields: [markedByUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([date, participantId])
+  @@index([date])
+}
