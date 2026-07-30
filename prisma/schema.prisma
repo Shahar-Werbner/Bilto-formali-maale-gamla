@@ -28,11 +28,12 @@ model User {
 }
 
 model Group {
-  id           String        @id @default(cuid())
-  name         String
+  id            String         @id @default(cuid())
+  name          String
   // A participant can belong to many groups; a group has many participants.
-  participants Participant[]  @relation("GroupMembers")
-  createdAt    DateTime      @default(now())
+  participants  Participant[]  @relation("GroupMembers")
+  activitySlots ActivitySlot[]
+  createdAt     DateTime       @default(now())
 }
 
 model Participant {
@@ -83,10 +84,11 @@ model EventDay {
   id          String            @id @default(cuid())
   eventId     String
   event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  date        DateTime          @db.Date
-  description String? // תיאור פעילות — free text, later AI-generated
-  attendance  EventAttendance[]
-  createdAt   DateTime          @default(now())
+  date          DateTime          @db.Date
+  description   String? // תיאור פעילות — free text, later AI-generated (general note)
+  attendance    EventAttendance[]
+  activitySlots ActivitySlot[]
+  createdAt     DateTime          @default(now())
 
   @@unique([eventId, date])
   @@index([eventId])
@@ -106,4 +108,24 @@ model EventAttendance {
 
   @@unique([eventDayId, participantId])
   @@index([eventDayId])
+}
+
+// A structured schedule slot within an event-day (סדר יום). Optional groupId
+// targets the slot to a specific group (parallel activities); null = whole event.
+model ActivitySlot {
+  id         String   @id @default(cuid())
+  eventDayId String
+  eventDay   EventDay @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  startTime  String // "HH:mm"
+  endTime    String? // "HH:mm", optional
+  title      String
+  location   String?
+  groupId    String?
+  group      Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  notes      String?
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([eventDayId])
+  @@index([groupId])
 }

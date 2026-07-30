@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { STATUSES, STATUS_LABEL, type Status } from "@/lib/attendance";
 import { formatHebrewDate } from "@/lib/events";
+import DaySchedule, { type Slot } from "./DaySchedule";
 
 type Participant = { id: string; name: string; grade?: string | null };
 type Day = { id: string; date: string; description: string | null };
+type Group = { id: string; name: string };
 type EventData = {
   id: string;
   name: string;
@@ -29,7 +31,15 @@ const STATUS_STYLE: Record<Status, { active: string; idle: string }> = {
   },
 };
 
-export default function EventBoard({ event }: { event: EventData }) {
+export default function EventBoard({
+  event,
+  groups,
+  slotsByDay,
+}: {
+  event: EventData;
+  groups: Group[];
+  slotsByDay: Record<string, Slot[]>;
+}) {
   const [selectedDayId, setSelectedDayId] = useState<string>(
     event.days[0]?.id ?? "",
   );
@@ -197,6 +207,14 @@ export default function EventBoard({ event }: { event: EventData }) {
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
             />
           </div>
+
+          {/* Day schedule */}
+          <DaySchedule
+            key={selectedDayId}
+            eventDayId={selectedDayId}
+            initialSlots={slotsByDay[selectedDayId] ?? []}
+            groups={groups}
+          />
 
           {/* Attendance */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
