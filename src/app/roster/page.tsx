@@ -10,7 +10,9 @@ export default async function RosterPage() {
 
   const groups = await prisma.group.findMany({
     orderBy: { createdAt: "asc" },
-    include: { participants: { orderBy: { createdAt: "asc" } } },
+    include: {
+      participants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+    },
   });
 
   const plain = groups.map((g) => ({

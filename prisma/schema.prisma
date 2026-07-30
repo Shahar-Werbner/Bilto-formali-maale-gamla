@@ -38,6 +38,7 @@ model Participant {
   id         String             @id @default(cuid())
   name       String
   grade      String? // כיתה — e.g. "א'", "ה'2"; optional so it can be filled later
+  sortOrder  Int                @default(0) // manual ordering within the list
   groupId    String
   group      Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
   attendance AttendanceRecord[]

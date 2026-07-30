@@ -37,7 +37,7 @@ export async function GET(
   const event = await prisma.event.findUnique({
     where: { id: params.id },
     include: {
-      participants: { orderBy: [{ name: "asc" }] },
+      participants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
       days: {
         orderBy: { date: "asc" },
         include: { attendance: { select: { participantId: true, status: true } } },

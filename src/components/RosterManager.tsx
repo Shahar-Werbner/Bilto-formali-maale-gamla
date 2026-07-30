@@ -102,6 +102,35 @@ export default function RosterManager({
     }
   }
 
+  async function moveParticipant(
+    groupId: string,
+    index: number,
+    dir: -1 | 1,
+  ) {
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const arr = [...group.participants];
+    const j = index + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[index], arr[j]] = [arr[j], arr[index]];
+
+    const prev = groups;
+    setGroups((g) =>
+      g.map((grp) => (grp.id === groupId ? { ...grp, participants: arr } : grp)),
+    );
+    try {
+      const res = await fetch("/api/participants/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: arr.map((p) => p.id) }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setGroups(prev);
+      setError("שינוי הסדר נכשל");
+    }
+  }
+
   async function deleteParticipant(groupId: string, id: string) {
     const prev = groups;
     setGroups((g) =>
@@ -162,6 +191,7 @@ export default function RosterManager({
             addParticipant(group.id, name, grade)
           }
           onUpdateGrade={(id, grade) => updateGrade(group.id, id, grade)}
+          onMove={(index, dir) => moveParticipant(group.id, index, dir)}
           onDeleteParticipant={(id) => deleteParticipant(group.id, id)}
         />
       ))}
@@ -174,12 +204,14 @@ function GroupCard({
   onDeleteGroup,
   onAddParticipant,
   onUpdateGrade,
+  onMove,
   onDeleteParticipant,
 }: {
   group: Group;
   onDeleteGroup: () => void;
   onAddParticipant: (name: string, grade: string) => void;
   onUpdateGrade: (id: string, grade: string) => void;
+  onMove: (index: number, dir: -1 | 1) => void;
   onDeleteParticipant: (id: string) => void;
 }) {
   const [name, setName] = useState("");
@@ -217,6 +249,24 @@ function GroupCard({
               i % 2 === 1 ? "bg-slate-50" : "bg-white"
             }`}
           >
+            <div className="flex shrink-0 flex-col">
+              <button
+                onClick={() => onMove(i, -1)}
+                disabled={i === 0}
+                aria-label="הזז למעלה"
+                className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
+              >
+                ▲
+              </button>
+              <button
+                onClick={() => onMove(i, 1)}
+                disabled={i === group.participants.length - 1}
+                aria-label="הזז למטה"
+                className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
+              >
+                ▼
+              </button>
+            </div>
             <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
               {p.name}
             </span>

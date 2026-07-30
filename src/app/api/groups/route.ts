@@ -10,7 +10,7 @@ export async function GET() {
   const groups = await prisma.group.findMany({
     orderBy: { createdAt: "asc" },
     include: {
-      participants: { orderBy: { createdAt: "asc" } },
+      participants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
     },
   });
   return NextResponse.json(groups);
