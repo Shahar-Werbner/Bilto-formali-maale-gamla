@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import AppHeader from "@/components/AppHeader";
 import EventBoard from "@/components/EventBoard";
-import { formatDateOnly } from "@/lib/attendance";
+import { formatDateOnly, sortByGrade } from "@/lib/attendance";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +27,13 @@ export default async function EventPage({
   const data = {
     id: event.id,
     name: event.name,
-    participants: event.participants.map((p) => ({
-      id: p.id,
-      name: p.name,
-      grade: p.grade,
-    })),
+    participants: sortByGrade(
+      event.participants.map((p) => ({
+        id: p.id,
+        name: p.name,
+        grade: p.grade,
+      })),
+    ),
     days: event.days.map((d) => ({
       id: d.id,
       date: formatDateOnly(d.date),

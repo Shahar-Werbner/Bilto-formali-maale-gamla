@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
-import { formatDateOnly, STATUS_LABEL, type Status } from "@/lib/attendance";
+import {
+  formatDateOnly,
+  sortByGrade,
+  STATUS_LABEL,
+  type Status,
+} from "@/lib/attendance";
 
 // Cell fills per status (classic spreadsheet green/yellow/red, preserved when
 // the .xlsx is opened in Google Sheets).
@@ -88,7 +93,7 @@ export async function GET(
     cell.border = { bottom: { style: "thin", color: { argb: "FFCCCCCC" } } };
   });
 
-  for (const p of event.participants) {
+  for (const p of sortByGrade(event.participants)) {
     const counts = { present: 0, late: 0, absent: 0 };
     const row: Record<string, string> = { name: p.name, grade: p.grade ?? "" };
     for (const d of event.days) {

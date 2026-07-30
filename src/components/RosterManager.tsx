@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { sortByGrade } from "@/lib/attendance";
 
 type Participant = { id: string; name: string; grade?: string | null };
 type Group = { id: string; name: string; memberIds: string[] };
@@ -63,26 +64,6 @@ export default function RosterManager({
     } catch {
       setParticipants(prev);
       setError("עדכון הכיתה נכשל");
-    }
-  }
-
-  async function move(index: number, dir: -1 | 1) {
-    const j = index + dir;
-    if (j < 0 || j >= participants.length) return;
-    const arr = [...participants];
-    [arr[index], arr[j]] = [arr[j], arr[index]];
-    const prev = participants;
-    setParticipants(arr);
-    try {
-      const res = await fetch("/api/participants/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedIds: arr.map((p) => p.id) }),
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      setParticipants(prev);
-      setError("שינוי הסדר נכשל");
     }
   }
 
@@ -205,48 +186,30 @@ export default function RosterManager({
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="שם ילד/ה"
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
           />
           <input
             value={newGrade}
             onChange={(e) => setNewGrade(e.target.value)}
             placeholder="כיתה"
-            className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-base"
+            className="w-16 shrink-0 rounded-lg border border-slate-300 px-2 py-2 text-center text-base"
           />
           <button
             type="submit"
-            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+            className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 font-semibold text-white"
           >
             הוספה
           </button>
         </form>
 
         <ul className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          {participants.map((p, i) => (
+          {sortByGrade(participants).map((p, i) => (
             <li
               key={p.id}
               className={`flex items-center gap-2 border-b border-slate-200 px-3 py-2.5 last:border-b-0 ${
                 i % 2 === 1 ? "bg-slate-50" : "bg-white"
               }`}
             >
-              <div className="flex shrink-0 flex-col">
-                <button
-                  onClick={() => move(i, -1)}
-                  disabled={i === 0}
-                  aria-label="למעלה"
-                  className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => move(i, 1)}
-                  disabled={i === participants.length - 1}
-                  aria-label="למטה"
-                  className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
-                >
-                  ▼
-                </button>
-              </div>
               <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
                 {p.name}
               </span>
@@ -288,11 +251,11 @@ export default function RosterManager({
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
             placeholder="שם קבוצה חדשה"
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
           />
           <button
             type="submit"
-            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+            className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
           >
             הוספה
           </button>
@@ -300,11 +263,13 @@ export default function RosterManager({
 
         <div className="flex flex-col gap-3">
           {groups.map((group) => {
-            const members = group.memberIds
-              .map(byId)
-              .filter((p): p is Participant => !!p);
-            const nonMembers = participants.filter(
-              (p) => !group.memberIds.includes(p.id),
+            const members = sortByGrade(
+              group.memberIds
+                .map(byId)
+                .filter((p): p is Participant => !!p),
+            );
+            const nonMembers = sortByGrade(
+              participants.filter((p) => !group.memberIds.includes(p.id)),
             );
             return (
               <div

@@ -29,3 +29,33 @@ export function formatDateOnly(date: Date): string {
 export function todayDateOnly(): string {
   return formatDateOnly(new Date());
 }
+
+// ── Grade ordering (כיתה) ────────────────────────────────────────────────
+// Grades are free text ("א'", "ה'2", "ב"). We rank by the Hebrew grade letter
+// so lists sort א, ב, ג… automatically. Unknown/empty grades sort last.
+const GRADE_ORDER = [
+  "א", "ב", "ג", "ד", "ה", "ו", "ז", "ח", "ט", "י", "יא", "יב",
+];
+
+export function gradeRank(grade?: string | null): number {
+  if (!grade) return 999;
+  const letters = grade.replace(/[^א-ת]/g, ""); // keep Hebrew letters only
+  if (!letters) return 998;
+  const exact = GRADE_ORDER.indexOf(letters);
+  if (exact >= 0) return exact;
+  const two = GRADE_ORDER.indexOf(letters.slice(0, 2));
+  if (two >= 0) return two;
+  const one = GRADE_ORDER.indexOf(letters.slice(0, 1));
+  return one >= 0 ? one : 997;
+}
+
+// Sort a copy by grade (א→ב→ג…), then alphabetically by name.
+export function sortByGrade<T extends { name: string; grade?: string | null }>(
+  list: T[],
+): T[] {
+  return [...list].sort(
+    (a, b) =>
+      gradeRank(a.grade) - gradeRank(b.grade) ||
+      a.name.localeCompare(b.name, "he"),
+  );
+}

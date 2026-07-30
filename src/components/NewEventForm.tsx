@@ -91,7 +91,7 @@ export default function NewEventForm({
         </label>
 
         <div className="flex gap-3">
-          <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
             מתאריך
             <input
               type="date"
@@ -100,7 +100,7 @@ export default function NewEventForm({
               className="rounded-lg border border-slate-300 px-3 py-3 text-base"
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
             עד תאריך
             <input
               type="date"

@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { sortByGrade } from "@/lib/attendance";
 import AppHeader from "@/components/AppHeader";
 import NewEventForm from "@/components/NewEventForm";
 
@@ -8,10 +9,10 @@ export const dynamic = "force-dynamic";
 export default async function NewEventPage() {
   const session = await auth();
 
-  const participants = await prisma.participant.findMany({
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  const rows = await prisma.participant.findMany({
     select: { id: true, name: true, grade: true },
   });
+  const participants = sortByGrade(rows);
 
   return (
     <>
