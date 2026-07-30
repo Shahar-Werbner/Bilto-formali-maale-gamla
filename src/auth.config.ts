@@ -15,13 +15,15 @@ export const authConfig = {
     // Runs in middleware for every matched request.
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isOnLogin = nextUrl.pathname.startsWith("/login");
+      const isPublic =
+        nextUrl.pathname.startsWith("/login") ||
+        nextUrl.pathname.startsWith("/register");
 
-      if (isOnLogin) {
+      if (isPublic) {
         if (isLoggedIn) {
-          return Response.redirect(new URL("/attendance", nextUrl));
+          return Response.redirect(new URL("/events", nextUrl));
         }
-        return true; // allow access to the login page
+        return true; // allow access to login / register
       }
       return isLoggedIn; // everything else requires a session
     },

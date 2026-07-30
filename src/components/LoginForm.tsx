@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/attendance";
+  const callbackUrl = searchParams.get("callbackUrl") || "/events";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -76,6 +77,13 @@ export default function LoginForm() {
       >
         {loading ? "מתחבר..." : "התחברות"}
       </button>
+
+      <p className="text-center text-sm text-slate-500">
+        אין לך חשבון?{" "}
+        <Link href="/register" className="font-semibold text-slate-900 underline">
+          הרשמה
+        </Link>
+      </p>
     </form>
   );
 }
