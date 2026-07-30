@@ -2,8 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 
-// POST /api/participants — add a participant to a group.
-// Body: { name, groupId }
+// GET /api/participants — the master list of all children.
+export async function GET() {
+  const { response } = await requireSession();
+  if (response) return response;
+
+  const participants = await prisma.participant.findMany({
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, grade: true },
+  });
+  return NextResponse.json(participants);
+}
+
+// POST /api/participants — add a child to the master list.
+// Body: { name, grade? }  Optionally { groupId } to also add to a group.
 export async function POST(request: Request) {
   const { response } = await requireSession();
   if (response) return response;
@@ -16,20 +28,16 @@ export async function POST(request: Request) {
       ? body.grade.trim()
       : null;
 
-  if (!name || !groupId) {
-    return NextResponse.json(
-      { error: "שם משתתף או קבוצה חסרים" },
-      { status: 400 },
-    );
-  }
-
-  const group = await prisma.group.findUnique({ where: { id: groupId } });
-  if (!group) {
-    return NextResponse.json({ error: "קבוצה לא נמצאה" }, { status: 404 });
+  if (!name) {
+    return NextResponse.json({ error: "שם משתתף חסר" }, { status: 400 });
   }
 
   const participant = await prisma.participant.create({
-    data: { name, grade, groupId },
+    data: {
+      name,
+      grade,
+      ...(groupId ? { groups: { connect: { id: groupId } } } : {}),
+    },
   });
   return NextResponse.json(participant, { status: 201 });
 }

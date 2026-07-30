@@ -3,91 +3,55 @@
 import { useState } from "react";
 
 type Participant = { id: string; name: string; grade?: string | null };
-type Group = { id: string; name: string; participants: Participant[] };
+type Group = { id: string; name: string; memberIds: string[] };
 
 export default function RosterManager({
+  initialParticipants,
   initialGroups,
 }: {
+  initialParticipants: Participant[];
   initialGroups: Group[];
 }) {
+  const [participants, setParticipants] =
+    useState<Participant[]>(initialParticipants);
   const [groups, setGroups] = useState<Group[]>(initialGroups);
-  const [newGroupName, setNewGroupName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  async function addGroup(e: React.FormEvent) {
+  const byId = (id: string) => participants.find((p) => p.id === id);
+
+  // ── master list ──────────────────────────────────────────────
+  const [newName, setNewName] = useState("");
+  const [newGrade, setNewGrade] = useState("");
+
+  async function addParticipant(e: React.FormEvent) {
     e.preventDefault();
-    const name = newGroupName.trim();
+    const name = newName.trim();
     if (!name) return;
-    setBusy(true);
     setError(null);
-    try {
-      const res = await fetch("/api/groups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok) throw new Error();
-      const group = await res.json();
-      setGroups((g) => [...g, { ...group, participants: [] }]);
-      setNewGroupName("");
-    } catch {
-      setError("הוספת הקבוצה נכשלה");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function deleteGroup(id: string) {
-    if (!confirm("למחוק את הקבוצה וכל המשתתפים שלה?")) return;
-    const prev = groups;
-    setGroups((g) => g.filter((x) => x.id !== id));
-    try {
-      const res = await fetch(`/api/groups/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-    } catch {
-      setGroups(prev);
-      setError("מחיקת הקבוצה נכשלה");
-    }
-  }
-
-  async function addParticipant(groupId: string, name: string, grade: string) {
-    const trimmed = name.trim();
-    if (!trimmed) return;
     try {
       const res = await fetch("/api/participants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, grade: grade.trim(), groupId }),
+        body: JSON.stringify({ name, grade: newGrade.trim() }),
       });
       if (!res.ok) throw new Error();
-      const participant = await res.json();
-      setGroups((g) =>
-        g.map((grp) =>
-          grp.id === groupId
-            ? { ...grp, participants: [...grp.participants, participant] }
-            : grp,
-        ),
-      );
+      const p = await res.json();
+      setParticipants((list) => [
+        ...list,
+        { id: p.id, name: p.name, grade: p.grade },
+      ]);
+      setNewName("");
+      setNewGrade("");
     } catch {
-      setError("הוספת המשתתף נכשלה");
+      setError("הוספת הילד/ה נכשלה");
     }
   }
 
-  async function updateGrade(groupId: string, id: string, grade: string) {
-    const prev = groups;
+  async function updateGrade(id: string, grade: string) {
+    const prev = participants;
     const value = grade.trim() || null;
-    setGroups((g) =>
-      g.map((grp) =>
-        grp.id === groupId
-          ? {
-              ...grp,
-              participants: grp.participants.map((p) =>
-                p.id === id ? { ...p, grade: value } : p,
-              ),
-            }
-          : grp,
-      ),
+    setParticipants((list) =>
+      list.map((p) => (p.id === id ? { ...p, grade: value } : p)),
     );
     try {
       const res = await fetch(`/api/participants/${id}`, {
@@ -97,27 +61,18 @@ export default function RosterManager({
       });
       if (!res.ok) throw new Error();
     } catch {
-      setGroups(prev);
+      setParticipants(prev);
       setError("עדכון הכיתה נכשל");
     }
   }
 
-  async function moveParticipant(
-    groupId: string,
-    index: number,
-    dir: -1 | 1,
-  ) {
-    const group = groups.find((g) => g.id === groupId);
-    if (!group) return;
-    const arr = [...group.participants];
+  async function move(index: number, dir: -1 | 1) {
     const j = index + dir;
-    if (j < 0 || j >= arr.length) return;
+    if (j < 0 || j >= participants.length) return;
+    const arr = [...participants];
     [arr[index], arr[j]] = [arr[j], arr[index]];
-
-    const prev = groups;
-    setGroups((g) =>
-      g.map((grp) => (grp.id === groupId ? { ...grp, participants: arr } : grp)),
-    );
+    const prev = participants;
+    setParticipants(arr);
     try {
       const res = await fetch("/api/participants/reorder", {
         method: "POST",
@@ -126,197 +81,307 @@ export default function RosterManager({
       });
       if (!res.ok) throw new Error();
     } catch {
-      setGroups(prev);
+      setParticipants(prev);
       setError("שינוי הסדר נכשל");
     }
   }
 
-  async function deleteParticipant(groupId: string, id: string) {
-    const prev = groups;
-    setGroups((g) =>
-      g.map((grp) =>
-        grp.id === groupId
-          ? { ...grp, participants: grp.participants.filter((p) => p.id !== id) }
-          : grp,
-      ),
+  async function deleteParticipant(id: string) {
+    if (!confirm("למחוק את הילד/ה מהמערכת (מכל הקבוצות)?")) return;
+    const prevP = participants;
+    const prevG = groups;
+    setParticipants((list) => list.filter((p) => p.id !== id));
+    setGroups((gs) =>
+      gs.map((g) => ({ ...g, memberIds: g.memberIds.filter((m) => m !== id) })),
     );
     try {
       const res = await fetch(`/api/participants/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
     } catch {
+      setParticipants(prevP);
+      setGroups(prevG);
+      setError("מחיקת הילד/ה נכשלה");
+    }
+  }
+
+  // ── groups ───────────────────────────────────────────────────
+  const [newGroupName, setNewGroupName] = useState("");
+
+  async function addGroup(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newGroupName.trim();
+    if (!name) return;
+    setError(null);
+    try {
+      const res = await fetch("/api/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error();
+      const g = await res.json();
+      setGroups((gs) => [...gs, { id: g.id, name: g.name, memberIds: [] }]);
+      setNewGroupName("");
+    } catch {
+      setError("הוספת הקבוצה נכשלה");
+    }
+  }
+
+  async function deleteGroup(id: string) {
+    if (!confirm("למחוק את הקבוצה? (הילדים יישארו ברשימה הכללית)")) return;
+    const prev = groups;
+    setGroups((gs) => gs.filter((g) => g.id !== id));
+    try {
+      const res = await fetch(`/api/groups/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    } catch {
       setGroups(prev);
-      setError("מחיקת המשתתף נכשלה");
+      setError("מחיקת הקבוצה נכשלה");
+    }
+  }
+
+  async function addMember(groupId: string, participantId: string) {
+    if (!participantId) return;
+    const prev = groups;
+    setGroups((gs) =>
+      gs.map((g) =>
+        g.id === groupId
+          ? { ...g, memberIds: [...g.memberIds, participantId] }
+          : g,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/groups/${groupId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantId }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setGroups(prev);
+      setError("הוספה לקבוצה נכשלה");
+    }
+  }
+
+  async function removeMember(groupId: string, participantId: string) {
+    const prev = groups;
+    setGroups((gs) =>
+      gs.map((g) =>
+        g.id === groupId
+          ? { ...g, memberIds: g.memberIds.filter((m) => m !== participantId) }
+          : g,
+      ),
+    );
+    try {
+      const res = await fetch(
+        `/api/groups/${groupId}/members?participantId=${participantId}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error();
+    } catch {
+      setGroups(prev);
+      setError("הסרה מהקבוצה נכשלה");
     }
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <form
-        onSubmit={addGroup}
-        className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-4"
-      >
-        <input
-          value={newGroupName}
-          onChange={(e) => setNewGroupName(e.target.value)}
-          placeholder="שם קבוצה חדשה"
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-3 text-base"
-        />
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-lg bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60"
-        >
-          הוספה
-        </button>
-      </form>
-
+    <div className="flex flex-col gap-6">
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </p>
       )}
 
-      {groups.length === 0 && (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
-          אין עדיין קבוצות. הוסיפו קבוצה ראשונה למעלה.
-        </p>
-      )}
-
-      {groups.map((group) => (
-        <GroupCard
-          key={group.id}
-          group={group}
-          onDeleteGroup={() => deleteGroup(group.id)}
-          onAddParticipant={(name, grade) =>
-            addParticipant(group.id, name, grade)
-          }
-          onUpdateGrade={(id, grade) => updateGrade(group.id, id, grade)}
-          onMove={(index, dir) => moveParticipant(group.id, index, dir)}
-          onDeleteParticipant={(id) => deleteParticipant(group.id, id)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function GroupCard({
-  group,
-  onDeleteGroup,
-  onAddParticipant,
-  onUpdateGrade,
-  onMove,
-  onDeleteParticipant,
-}: {
-  group: Group;
-  onDeleteGroup: () => void;
-  onAddParticipant: (name: string, grade: string) => void;
-  onUpdateGrade: (id: string, grade: string) => void;
-  onMove: (index: number, dir: -1 | 1) => void;
-  onDeleteParticipant: (id: string) => void;
-}) {
-  const [name, setName] = useState("");
-  const [grade, setGrade] = useState("");
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    onAddParticipant(name, grade);
-    setName("");
-    setGrade("");
-  }
-
-  return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-        <h2 className="text-lg font-bold text-slate-900">
-          {group.name}
-          <span className="mr-2 text-sm font-normal text-slate-400">
-            ({group.participants.length})
-          </span>
+      {/* Master list */}
+      <section>
+        <h2 className="mb-2 text-lg font-bold text-slate-900">
+          כל הילדים ({participants.length})
         </h2>
-        <button
-          onClick={onDeleteGroup}
-          className="rounded-lg px-3 py-2 text-sm font-medium text-absent hover:bg-red-50"
+        <form
+          onSubmit={addParticipant}
+          className="mb-2 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3"
         >
-          מחיקת קבוצה
-        </button>
-      </div>
-
-      <ul>
-        {group.participants.map((p, i) => (
-          <li
-            key={p.id}
-            className={`flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 last:border-b-0 ${
-              i % 2 === 1 ? "bg-slate-50" : "bg-white"
-            }`}
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="שם ילד/ה"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
+          />
+          <input
+            value={newGrade}
+            onChange={(e) => setNewGrade(e.target.value)}
+            placeholder="כיתה"
+            className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-base"
+          />
+          <button
+            type="submit"
+            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
           >
-            <div className="flex shrink-0 flex-col">
-              <button
-                onClick={() => onMove(i, -1)}
-                disabled={i === 0}
-                aria-label="הזז למעלה"
-                className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
-              >
-                ▲
-              </button>
-              <button
-                onClick={() => onMove(i, 1)}
-                disabled={i === group.participants.length - 1}
-                aria-label="הזז למטה"
-                className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
-              >
-                ▼
-              </button>
-            </div>
-            <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
-              {p.name}
-            </span>
-            <input
-              defaultValue={p.grade ?? ""}
-              onBlur={(e) => {
-                if ((e.target.value.trim() || null) !== (p.grade ?? null)) {
-                  onUpdateGrade(p.id, e.target.value);
-                }
-              }}
-              placeholder="כיתה"
-              className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm"
-            />
-            <button
-              onClick={() => onDeleteParticipant(p.id)}
-              className="rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
-              aria-label={`מחיקת ${p.name}`}
-            >
-              מחיקה
-            </button>
-          </li>
-        ))}
-        {group.participants.length === 0 && (
-          <li className="px-4 py-3 text-sm text-slate-400">אין משתתפים עדיין</li>
-        )}
-      </ul>
+            הוספה
+          </button>
+        </form>
 
-      <form
-        onSubmit={submit}
-        className="flex gap-2 border-t border-slate-100 p-3"
-      >
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="שם משתתף/ת"
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
-        />
-        <input
-          value={grade}
-          onChange={(e) => setGrade(e.target.value)}
-          placeholder="כיתה"
-          className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-center text-base"
-        />
-        <button
-          type="submit"
-          className="rounded-lg bg-slate-100 px-4 py-2 font-semibold text-slate-800 hover:bg-slate-200"
+        <ul className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          {participants.map((p, i) => (
+            <li
+              key={p.id}
+              className={`flex items-center gap-2 border-b border-slate-200 px-3 py-2.5 last:border-b-0 ${
+                i % 2 === 1 ? "bg-slate-50" : "bg-white"
+              }`}
+            >
+              <div className="flex shrink-0 flex-col">
+                <button
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  aria-label="למעלה"
+                  className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={() => move(i, 1)}
+                  disabled={i === participants.length - 1}
+                  aria-label="למטה"
+                  className="px-1 text-xs leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                >
+                  ▼
+                </button>
+              </div>
+              <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
+                {p.name}
+              </span>
+              <input
+                defaultValue={p.grade ?? ""}
+                onBlur={(e) => {
+                  if ((e.target.value.trim() || null) !== (p.grade ?? null)) {
+                    updateGrade(p.id, e.target.value);
+                  }
+                }}
+                placeholder="כיתה"
+                className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm"
+              />
+              <button
+                onClick={() => deleteParticipant(p.id)}
+                className="rounded-lg px-2 py-1.5 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
+                aria-label={`מחיקת ${p.name}`}
+              >
+                מחיקה
+              </button>
+            </li>
+          ))}
+          {participants.length === 0 && (
+            <li className="px-3 py-3 text-sm text-slate-400">
+              אין ילדים עדיין. הוסיפו למעלה.
+            </li>
+          )}
+        </ul>
+      </section>
+
+      {/* Groups */}
+      <section>
+        <h2 className="mb-2 text-lg font-bold text-slate-900">קבוצות</h2>
+        <form
+          onSubmit={addGroup}
+          className="mb-2 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3"
         >
-          הוספה
-        </button>
-      </form>
-    </section>
+          <input
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+            placeholder="שם קבוצה חדשה"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base"
+          />
+          <button
+            type="submit"
+            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+          >
+            הוספה
+          </button>
+        </form>
+
+        <div className="flex flex-col gap-3">
+          {groups.map((group) => {
+            const members = group.memberIds
+              .map(byId)
+              .filter((p): p is Participant => !!p);
+            const nonMembers = participants.filter(
+              (p) => !group.memberIds.includes(p.id),
+            );
+            return (
+              <div
+                key={group.id}
+                className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+              >
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-base font-bold text-slate-900">
+                    {group.name}
+                    <span className="mr-2 text-sm font-normal text-slate-400">
+                      ({members.length})
+                    </span>
+                  </h3>
+                  <button
+                    onClick={() => deleteGroup(group.id)}
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-absent hover:bg-red-50"
+                  >
+                    מחיקת קבוצה
+                  </button>
+                </div>
+
+                <ul>
+                  {members.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 last:border-b-0"
+                    >
+                      <span className="font-medium text-slate-800">
+                        {p.name}
+                        {p.grade && (
+                          <span className="mr-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
+                            {p.grade}
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        onClick={() => removeMember(group.id, p.id)}
+                        className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
+                      >
+                        הסרה
+                      </button>
+                    </li>
+                  ))}
+                  {members.length === 0 && (
+                    <li className="px-4 py-2.5 text-sm text-slate-400">
+                      אין ילדים בקבוצה
+                    </li>
+                  )}
+                </ul>
+
+                {nonMembers.length > 0 && (
+                  <div className="border-t border-slate-100 p-3">
+                    <select
+                      value=""
+                      onChange={(e) => addMember(group.id, e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base"
+                    >
+                      <option value="">+ הוספת ילד/ה לקבוצה…</option>
+                      {nonMembers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                          {p.grade ? ` (${p.grade})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {groups.length === 0 && (
+            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
+              אין קבוצות. אפשר לחלק את הילדים לקבוצות (א׳, ב׳, ג׳…).
+            </p>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }

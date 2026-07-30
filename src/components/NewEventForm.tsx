@@ -4,14 +4,17 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Participant = { id: string; name: string; grade?: string | null };
-type Group = { id: string; name: string; participants: Participant[] };
 
-export default function NewEventForm({ groups }: { groups: Group[] }) {
+export default function NewEventForm({
+  participants,
+}: {
+  participants: Participant[];
+}) {
   const router = useRouter();
 
   const allIds = useMemo(
-    () => groups.flatMap((g) => g.participants.map((p) => p.id)),
-    [groups],
+    () => participants.map((p) => p.id),
+    [participants],
   );
 
   const [name, setName] = useState("");
@@ -150,40 +153,33 @@ export default function NewEventForm({ groups }: { groups: Group[] }) {
           </button>
         </div>
 
-        {groups.length === 0 && (
+        {participants.length === 0 && (
           <p className="text-sm text-slate-400">
-            אין משתתפים. הוסיפו אותם קודם במסך קבוצות.
+            אין ילדים. הוסיפו אותם קודם במסך קבוצות.
           </p>
         )}
 
-        {groups.map((g) => (
-          <div key={g.id} className="mb-2">
-            <div className="mb-1 text-xs font-semibold text-slate-400">
-              {g.name}
-            </div>
-            <div className="flex flex-col">
-              {g.participants.map((p) => (
-                <label
-                  key={p.id}
-                  className="flex items-center gap-2 rounded-lg px-2 py-2 text-slate-800 hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(p.id)}
-                    onChange={() => toggle(p.id)}
-                    className="h-5 w-5"
-                  />
-                  {p.name}
-                  {p.grade && (
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
-                      {p.grade}
-                    </span>
-                  )}
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
+        <div className="flex flex-col">
+          {participants.map((p) => (
+            <label
+              key={p.id}
+              className="flex items-center gap-2 rounded-lg px-2 py-2 text-slate-800 hover:bg-slate-50"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(p.id)}
+                onChange={() => toggle(p.id)}
+                className="h-5 w-5"
+              />
+              {p.name}
+              {p.grade && (
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
+                  {p.grade}
+                </span>
+              )}
+            </label>
+          ))}
+        </div>
       </div>
 
       {error && (

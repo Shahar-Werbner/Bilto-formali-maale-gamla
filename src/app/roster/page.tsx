@@ -8,28 +8,31 @@ export const dynamic = "force-dynamic";
 export default async function RosterPage() {
   const session = await auth();
 
-  const groups = await prisma.group.findMany({
-    orderBy: { createdAt: "asc" },
-    include: {
-      participants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-    },
-  });
+  const [participants, groups] = await Promise.all([
+    prisma.participant.findMany({
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, name: true, grade: true },
+    }),
+    prisma.group.findMany({
+      orderBy: { createdAt: "asc" },
+      include: { participants: { select: { id: true } } },
+    }),
+  ]);
 
-  const plain = groups.map((g) => ({
+  const plainGroups = groups.map((g) => ({
     id: g.id,
     name: g.name,
-    participants: g.participants.map((p) => ({
-      id: p.id,
-      name: p.name,
-      grade: p.grade,
-    })),
+    memberIds: g.participants.map((p) => p.id),
   }));
 
   return (
     <>
       <AppHeader active="/roster" userName={session?.user?.name} />
       <main className="mx-auto max-w-3xl px-4 py-4">
-        <RosterManager initialGroups={plain} />
+        <RosterManager
+          initialParticipants={participants}
+          initialGroups={plainGroups}
+        />
       </main>
     </>
   );
