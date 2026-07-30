@@ -138,7 +138,7 @@ export default function EventBoard({ event }: { event: EventData }) {
         href={`/api/events/${event.id}/export`}
         className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
-        ⬇ ייצוא ל-Google Sheets / Excel
+        ⬇ ייצוא כל האירוע (Google Sheets / Excel)
       </a>
 
       {/* Day selector */}
@@ -160,6 +160,15 @@ export default function EventBoard({ event }: { event: EventData }) {
           );
         })}
       </div>
+
+      {selectedDay && (
+        <a
+          href={`/api/event-days/${selectedDayId}/export`}
+          className="inline-flex w-fit items-center gap-1 self-start rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          ⬇ ייצוא היום הנבחר
+        </a>
+      )}
 
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
