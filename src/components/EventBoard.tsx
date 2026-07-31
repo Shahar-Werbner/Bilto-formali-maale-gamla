@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { STATUSES, STATUS_LABEL, type Status } from "@/lib/attendance";
+import {
+  STATUSES,
+  STATUS_LABEL,
+  sortByGrade,
+  type Status,
+} from "@/lib/attendance";
 import { formatHebrewDate } from "@/lib/events";
 import DaySchedule, { type Slot } from "./DaySchedule";
 
@@ -35,14 +40,20 @@ export default function EventBoard({
   event,
   groups,
   slotsByDay,
+  allParticipants,
 }: {
   event: EventData;
   groups: Group[];
   slotsByDay: Record<string, Slot[]>;
+  allParticipants: Participant[];
 }) {
   const [selectedDayId, setSelectedDayId] = useState<string>(
     event.days[0]?.id ?? "",
   );
+  const [participants, setParticipants] = useState<Participant[]>(
+    event.participants,
+  );
+  const [manageOpen, setManageOpen] = useState(false);
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [descriptions, setDescriptions] = useState<Record<string, string>>(
     () => {
@@ -106,7 +117,7 @@ export default function EventBoard({
     const prev = { ...statuses };
     setStatuses(() => {
       const next: Record<string, Status> = {};
-      for (const p of event.participants) next[p.id] = status;
+      for (const p of participants) next[p.id] = status;
       return next;
     });
     try {
@@ -135,6 +146,49 @@ export default function EventBoard({
     }
   }
 
+  async function addParticipant(participantId: string) {
+    const p = allParticipants.find((x) => x.id === participantId);
+    if (!p) return;
+    const prev = participants;
+    setParticipants((cur) => sortByGrade([...cur, p]));
+    try {
+      const res = await fetch(`/api/events/${event.id}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantId }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setParticipants(prev);
+      setError("הוספת המשתתף לאירוע נכשלה");
+    }
+  }
+
+  async function removeParticipant(participantId: string) {
+    if (!confirm("להסיר את הילד/ה מהאירוע? הנוכחות שלו/ה באירוע תימחק.")) return;
+    const prev = participants;
+    setParticipants((cur) => cur.filter((p) => p.id !== participantId));
+    setStatuses((s) => {
+      const next = { ...s };
+      delete next[participantId];
+      return next;
+    });
+    try {
+      const res = await fetch(
+        `/api/events/${event.id}/participants?participantId=${participantId}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error();
+    } catch {
+      setParticipants(prev);
+      setError("הסרת המשתתף מהאירוע נכשלה");
+    }
+  }
+
+  const nonMembers = sortByGrade(
+    allParticipants.filter((p) => !participants.some((m) => m.id === p.id)),
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
@@ -150,6 +204,63 @@ export default function EventBoard({
       >
         ⬇ ייצוא כל האירוע (Google Sheets / Excel)
       </a>
+
+      {/* Manage participants */}
+      <div className="rounded-2xl border border-slate-200 bg-white">
+        <button
+          onClick={() => setManageOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-right"
+        >
+          <span className="font-bold text-slate-900">
+            משתתפים באירוע ({participants.length})
+          </span>
+          <span className="text-slate-400">{manageOpen ? "▲" : "▼"}</span>
+        </button>
+        {manageOpen && (
+          <div className="border-t border-slate-100 p-3">
+            <ul className="mb-2 flex flex-wrap gap-2">
+              {participants.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-center gap-1 rounded-full bg-slate-100 py-1 pr-3 pl-1 text-sm"
+                >
+                  <span className="text-slate-800">
+                    {p.name}
+                    {p.grade ? ` · ${p.grade}` : ""}
+                  </span>
+                  <button
+                    onClick={() => removeParticipant(p.id)}
+                    aria-label={`הסרת ${p.name}`}
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-absent"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+              {participants.length === 0 && (
+                <li className="text-sm text-slate-400">אין משתתפים באירוע</li>
+              )}
+            </ul>
+            {nonMembers.length > 0 ? (
+              <select
+                value=""
+                onChange={(e) => e.target.value && addParticipant(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base"
+              >
+                <option value="">+ הוספת ילד/ה לאירוע…</option>
+                {nonMembers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.grade ? ` (${p.grade})` : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-slate-400">כל הילדים כבר באירוע.</p>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Day selector */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -230,13 +341,13 @@ export default function EventBoard({
               </button>
             </div>
 
-            {event.participants.length === 0 ? (
+            {participants.length === 0 ? (
               <p className="px-4 py-4 text-sm text-slate-400">
                 אין משתתפים באירוע זה
               </p>
             ) : (
               <ul>
-                {event.participants.map((p, i) => {
+                {participants.map((p, i) => {
                   const current = statuses[p.id];
                   return (
                     <li

@@ -37,6 +37,12 @@ export default async function EventPage({
     }),
   ]);
 
+  const allParticipants = sortByGrade(
+    await prisma.participant.findMany({
+      select: { id: true, name: true, grade: true },
+    }),
+  );
+
   if (!event) notFound();
 
   const slotsByDay: Record<string, Slot[]> = {};
@@ -75,7 +81,12 @@ export default async function EventPage({
     <>
       <AppHeader active="/events" userName={session?.user?.name} />
       <main className="mx-auto max-w-3xl px-4 py-4">
-        <EventBoard event={data} groups={groups} slotsByDay={slotsByDay} />
+        <EventBoard
+          event={data}
+          groups={groups}
+          slotsByDay={slotsByDay}
+          allParticipants={allParticipants}
+        />
       </main>
     </>
   );
