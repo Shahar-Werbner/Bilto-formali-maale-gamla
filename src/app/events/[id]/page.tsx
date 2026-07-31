@@ -33,9 +33,15 @@ export default async function EventPage({
     }),
     prisma.group.findMany({
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, participants: { select: { id: true } } },
     }),
   ]);
+
+  const plainGroups = groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    memberIds: g.participants.map((p) => p.id),
+  }));
 
   const allParticipants = sortByGrade(
     await prisma.participant.findMany({
@@ -83,7 +89,7 @@ export default async function EventPage({
       <main className="mx-auto max-w-3xl px-4 py-4">
         <EventBoard
           event={data}
-          groups={groups}
+          groups={plainGroups}
           slotsByDay={slotsByDay}
           allParticipants={allParticipants}
         />

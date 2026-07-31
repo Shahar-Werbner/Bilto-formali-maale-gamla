@@ -13,7 +13,7 @@ import DaySchedule, { type Slot } from "./DaySchedule";
 
 type Participant = { id: string; name: string; grade?: string | null };
 type Day = { id: string; date: string; description: string | null };
-type Group = { id: string; name: string };
+type Group = { id: string; name: string; memberIds: string[] };
 type EventData = {
   id: string;
   name: string;
@@ -185,6 +185,32 @@ export default function EventBoard({
     }
   }
 
+  async function addGroupMembers(groupId: string) {
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const toAdd = group.memberIds.filter(
+      (id) => !participants.some((p) => p.id === id),
+    );
+    if (toAdd.length === 0) {
+      setError("כל חברי הקבוצה כבר באירוע");
+      return;
+    }
+    const newOnes = allParticipants.filter((p) => toAdd.includes(p.id));
+    const prev = participants;
+    setParticipants((cur) => sortByGrade([...cur, ...newOnes]));
+    try {
+      const res = await fetch(`/api/events/${event.id}/participants/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantIds: toAdd }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setParticipants(prev);
+      setError("הוספת הקבוצה נכשלה");
+    }
+  }
+
   const nonMembers = sortByGrade(
     allParticipants.filter((p) => !participants.some((m) => m.id === p.id)),
   );
@@ -257,6 +283,23 @@ export default function EventBoard({
               </select>
             ) : (
               <p className="text-sm text-slate-400">כל הילדים כבר באירוע.</p>
+            )}
+
+            {groups.length > 0 && (
+              <select
+                value=""
+                onChange={(e) =>
+                  e.target.value && addGroupMembers(e.target.value)
+                }
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base"
+              >
+                <option value="">+ הוספת קבוצה שלמה לאירוע…</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} ({g.memberIds.length})
+                  </option>
+                ))}
+              </select>
             )}
           </div>
         )}
