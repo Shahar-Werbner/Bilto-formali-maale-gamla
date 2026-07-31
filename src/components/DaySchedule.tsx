@@ -148,6 +148,92 @@ export default function DaySchedule({
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // AI import
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState("");
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  function readAsBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () =>
+        resolve(String(r.result).replace(/^data:.*;base64,/, ""));
+      r.onerror = () => reject(new Error("קריאת הקובץ נכשלה"));
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function runAi(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    let text = aiText;
+    let pdfBase64: string | undefined;
+
+    if (aiFile) {
+      if (aiFile.type === "application/pdf") {
+        pdfBase64 = await readAsBase64(aiFile).catch(() => undefined);
+      } else {
+        // text-like file → read as plain text and append
+        const fileText = await aiFile.text().catch(() => "");
+        text = [text, fileText].filter(Boolean).join("\n");
+      }
+    }
+
+    if (!text.trim() && !pdfBase64) {
+      setError("כתוב תיאור או בחר קובץ");
+      return;
+    }
+
+    setAiBusy(true);
+    try {
+      const res = await fetch(
+        `/api/event-days/${eventDayId}/activity-slots/ai`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, pdfBase64 }),
+        },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "עיבוד ה-AI נכשל");
+      }
+      const { created } = await res.json();
+      const added: Slot[] = (created ?? []).map(
+        (s: {
+          id: string;
+          startTime: string;
+          endTime: string | null;
+          title: string;
+          location: string | null;
+          groupId: string | null;
+          notes: string | null;
+          order: number;
+          group: { id: string; name: string } | null;
+        }) => ({
+          id: s.id,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          title: s.title,
+          location: s.location,
+          groupId: s.groupId,
+          groupName: s.group?.name ?? null,
+          notes: s.notes,
+          order: s.order,
+        }),
+      );
+      setSlots((cur) => [...cur, ...added]);
+      setAiText("");
+      setAiFile(null);
+      setAiOpen(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function addSlot(d: Draft) {
     setError(null);
     try {
@@ -333,6 +419,66 @@ export default function DaySchedule({
             className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
           >
             + הוספת פעילות ללוז
+          </button>
+        )}
+      </div>
+
+      {/* AI import */}
+      <div className="mt-2">
+        {aiOpen ? (
+          <form
+            onSubmit={runAi}
+            className="flex flex-col gap-2 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3"
+          >
+            <span className="text-sm font-semibold text-indigo-900">
+              ✨ סידור אוטומטי עם AI
+            </span>
+            <textarea
+              value={aiText}
+              onChange={(e) => setAiText(e.target.value)}
+              placeholder="כתוב בחופשי, למשל: 9:00 ארוחת בוקר, 10 ריקוד לקבוצה א' באולם, 12 צהריים…"
+              rows={3}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
+            />
+            <label className="text-xs text-slate-500">
+              או צרף קובץ תכנון (טקסט או PDF):
+              <input
+                type="file"
+                accept=".txt,.md,.csv,text/plain,application/pdf"
+                onChange={(e) => setAiFile(e.target.files?.[0] ?? null)}
+                className="mt-1 block w-full text-sm"
+              />
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={aiBusy}
+                className="rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white disabled:opacity-60"
+              >
+                {aiBusy ? "מסדר…" : "סדר ללוז"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiOpen(false);
+                  setAiText("");
+                  setAiFile(null);
+                }}
+                className="rounded-lg px-4 py-2 font-medium text-slate-500 hover:bg-slate-100"
+              >
+                ביטול
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              ה-AI ימיר את התיאור לפעילויות מסודרות. אפשר לערוך אחר כך.
+            </p>
+          </form>
+        ) : (
+          <button
+            onClick={() => setAiOpen(true)}
+            className="w-full rounded-lg border border-dashed border-indigo-300 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+          >
+            ✨ סידור אוטומטי עם AI
           </button>
         )}
       </div>
