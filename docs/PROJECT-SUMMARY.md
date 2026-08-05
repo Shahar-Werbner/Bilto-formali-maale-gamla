@@ -1,130 +1,128 @@
 # מערכת נוכחות מעלה גמלא — סיכום מלא (להעברה לקלוד)
 
-מסמך הקשר מלא להמשך פיתוח. מסכם את כל מה שנבנה עד כה, המבנה, ההחלטות, ומצב הפריסה.
-המערכת **חיה ובשימוש** של הצוות.
+מסמך הקשר מלא להמשך פיתוח. המערכת **חיה ובשימוש** של הצוות. מסכם את כל מה שנבנה,
+המבנה, ההחלטות, ומצב הפריסה.
 
 ## מה זה
 מערכת ניהול לחינוך הבלתי פורמלי במושב מעלה גמלא. הליבה: **סימון נוכחות מבוסס
-אירועים**. תוכנן להרחבה עתידית: סידור עבודה, לוז פעילויות, הכנת פעילויות עם AI,
-מעקב שעות עבודה.
+אירועים**, עם **לוז יומי מובנה** (כולל סידור אוטומטי עם AI). מתוכנן להרחבה: סידור
+עבודה, מעקב שעות עבודה, תפקיד הורה.
 
 ## Stack
 - Next.js 14.2 (App Router, TypeScript), תיקיית `src/`
 - Prisma ORM 5.22 + PostgreSQL (Neon)
-- Auth.js (NextAuth v5 beta) — Credentials (email+סיסמה), JWT session, split-config
-  ל-middleware edge-safe
-- Tailwind CSS · exceljs (ייצוא) · bcryptjs (סיסמאות)
-- עברית מלאה RTL (`<html dir="rtl">`), mobile-first
-- פריסה: Vercel
+- Auth.js (NextAuth v5 beta) — Credentials (email+סיסמה), JWT, split-config (edge-safe middleware)
+- Tailwind CSS · exceljs (ייצוא) · bcryptjs (סיסמאות) · @anthropic-ai/sdk (AI)
+- עברית מלאה RTL, mobile-first · פריסה: Vercel
 
 ## פיצ'רים שנבנו
 ### התחברות ומשתמשים
-- **`/login`** — email + סיסמה.
-- **`/register`** — הרשמה עצמית לצוות, מוגנת ב**קוד צוות משותף** (env `SIGNUP_CODE`).
-  כל נרשם מקבל `role="staff"`. אם `SIGNUP_CODE` לא מוגדר — ההרשמה מושבתת.
-- כל הדפים מוגנים ב-`middleware.ts` (redirect ל-`/login`). `/register` ציבורי.
-- אין OAuth. הוספת משתמש ידנית אפשרית גם דרך seed / SQL.
+- `/login` — email + סיסמה. `/register` — הרשמה עצמית מוגנת ב**קוד צוות** (env
+  `SIGNUP_CODE`); כל נרשם מקבל role `"staff"`. אין הרשמה אם `SIGNUP_CODE` לא מוגדר.
+- כל הדפים מוגנים ב-`middleware.ts`; `/register` ציבורי.
 
 ### אירועים (מנגנון הנוכחות)
-- **`/events`** — רשימת אירועים (שם, טווח, מס' ימים/משתתפים), מחיקה.
-- **`/events/new`** — יצירת אירוע: שם, טווח תאריכים, **checkbox נפרד** ל"כלול שישי"
-  ו"כלול שבת" (ברירת מחדל: לא), ובחירת משתתפים מהרשימה הראשית (ברירת מחדל כולם).
-  המערכת מייצרת אוטומטית `EventDay` לכל יום בטווח (מדלגת על שישי/שבת אם לא סומנו).
-- **`/events/[id]`** — בורר ימים; לכל יום: **תיאור פעילות** (נשמר אוטומטית, מיועד
-  ל-AI בעתיד) + סימון נוכחות פרטני (נוכח/איחור/נעדר) + "סמן הכל נוכח". שמירה מיידית
-  עם `markedByUserId`.
-- **הנוכחות היא רק דרך אירועים** — אין דף נוכחות יומי עצמאי (הוסר).
+- `/events` — רשימה + מחיקה. `/events/new` — יצירה: שם, טווח תאריכים, checkbox נפרד
+  ל"כלול שישי" ו"כלול שבת" (ברירת מחדל לא), ובחירת משתתפים מהרשימה הראשית. המערכת
+  מייצרת `EventDay` לכל יום בטווח (מדלגת שישי/שבת אם לא סומנו).
+- `/events/[id]` — בורר ימים; לכל יום: תיאור, **לוז** (ראה למטה), וסימון נוכחות
+  פרטני (נוכח/איחור/נעדר) + "סמן הכל נוכח". שמירה מיידית עם `markedByUserId`.
+- **ניהול משתתפי האירוע בדיעבד**: בדף האירוע יש סקשן "משתתפים באירוע" — הוספה/הסרה
+  של ילד בודד, ו**הוספת קבוצה שלמה** בבת אחת. (רשימת משתתפי האירוע עצמאית מחברות
+  בקבוצות — לכן הוספה לקבוצה לא משנה אירוע קיים; יש להוסיף לאירוע במפורש.)
+- הנוכחות היא **רק דרך אירועים** (אין דף יומי עצמאי).
+
+### לוז יומי (ActivitySlot)
+- בכל יום-אירוע: רשימת "סלוטים" ממוינת לפי order/שעה, עם שעה, כותרת, מיקום, תג קבוצה
+  (אם ייעודי), והערות. הוספה/עריכה/מחיקה inline + חצי ▲▼ לשינוי סדר. שמירה מיידית.
+- **סידור אוטומטי עם AI**: כפתור "✨ סידור אוטומטי עם AI" — כותבים תיאור חופשי או
+  מצרפים קובץ (טקסט/PDF) עם תכנון, ו-Claude ממיר לפעילויות מסודרות (structured
+  outputs). שמות קבוצות בטקסט ממופים לקבוצות קיימות. מוגן ב-`ANTHROPIC_API_KEY`
+  (בלעדיו הכפתור מחזיר "לא מוגדר", השאר עובד). מודל דרך env `AI_MODEL` (ברירת מחדל
+  `claude-opus-5`; אפשר `claude-haiku-4-5` לחיסכון).
 
 ### רשימת ילדים וקבוצות
-- **`/roster`** — שני חלקים:
-  1. **"כל הילדים"** — הרשימה הראשית (master). הוספה (שם+כיתה), עריכת כיתה inline, מחיקה.
-  2. **"קבוצות"** — יצירה/מחיקה; לכל קבוצה: חברים + הסרה + הוספת ילד מהרשימה (dropdown).
-- **שיוך מרובה**: Participant↔Group הוא many-to-many. ילד יכול להיות בכמה קבוצות.
-  מחיקת קבוצה לא מוחקת ילדים.
-- **כיתה (`grade`)** — שדה טקסט חופשי לכל ילד ("א'", "ה'2"...).
-- **מיון אוטומטי לפי כיתה** — כל הרשימות ממוינות א→ב→ג… (ואז לפי שם; ללא כיתה בסוף).
-  הלוגיקה: `sortByGrade` / `gradeRank` ב-`src/lib/attendance.ts`. אין מיון ידני יותר.
+- `/roster` — "כל הילדים" (רשימה ראשית: הוספה, כיתה inline, מחיקה) + "קבוצות"
+  (יצירה/מחיקה, הוספת/הסרת חברים דרך dropdown). **שיוך מרובה**: Participant↔Group
+  many-to-many — ילד בכמה קבוצות; מחיקת קבוצה לא מוחקת ילדים.
+- שדה **כיתה** (`grade`) לכל ילד. **מיון אוטומטי לפי כיתה** (א→ב→ג…, ואז שם; ללא
+  כיתה בסוף) בכל הרשימות — לוגיקה ב-`src/lib/attendance.ts` (`gradeRank`/`sortByGrade`).
 
 ### ייצוא ל-Google Sheets / Excel
-- **כל האירוע** — `GET /api/events/[id]/export` → `.xlsx` צבעוני: שורה לכל ילד, עמודה
-  לכל יום, תאים ירוק/צהוב/אדום (נוכח/איחור/נעדר), עמודות סיכום. RTL. (exceljs)
-- **יום בודד** — `GET /api/event-days/[id]/export` → `.xlsx` ליום אחד (כותרת, תיאור
-  פעילות, ילדים ממוינים לפי כיתה, סטטוס צבוע, שורת סיכום).
-- כפתורים בדף האירוע. הצבעים נשמרים כשפותחים ב-Google Sheets.
+- כל האירוע — `GET /api/events/[id]/export`. יום בודד — `GET /api/event-days/[id]/export`.
+  `.xlsx` צבעוני (ירוק=נוכח/צהוב=איחור/אדום=נעדר), RTL, ממוין לפי כיתה, עם סיכומים. (exceljs)
 
 ### היסטוריה
-- **`/history`** — כל יום-אירוע עם שם האירוע וסיכום נוכחים/איחורים/נעדרים (60 אחרונים).
+- `/history` — כל יום-אירוע עם שם האירוע וסיכום נוכחים/איחורים/נעדרים.
 
-## מבנה קבצים
+## מבנה קבצים (עיקרי)
 ```
 prisma/schema.prisma, prisma/migrations/*, prisma/seed.ts
 src/auth.ts, src/auth.config.ts, src/middleware.ts
-src/lib/{prisma,attendance,events,api-auth}.ts   # attendance.ts: STATUSES, date-only, gradeRank/sortByGrade
-src/app/{login,register}/page.tsx
-src/app/{events,events/new,events/[id],roster,history}/page.tsx
+src/lib/{prisma,attendance,events,api-auth,ai-schedule}.ts
+src/app/{login,register,events,events/new,events/[id],roster,history}/page.tsx
 src/app/api/
   auth/[...nextauth], register,
   groups, groups/[id], groups/[id]/members,
   participants, participants/[id], participants/reorder(*legacy),
   events, events/[id], events/[id]/export,
+  events/[id]/participants, events/[id]/participants/bulk,
   event-days/[id], event-days/[id]/export,
+  event-days/[id]/activity-slots, .../activity-slots/reorder, .../activity-slots/ai,
+  activity-slots/[id],
   event-attendance, event-attendance/bulk
-src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,
-  RosterManager,NewEventForm,EventBoard,DeleteEventButton}.tsx
+src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
+  NewEventForm,EventBoard,DaySchedule,DeleteEventButton}.tsx
 ```
 
 ## מודל הנתונים (Prisma, נוכחי)
 - **User**: id, email(unique), name, role(String,"staff"), passwordHash?, createdAt.
-- **Group**: id, name, participants (m-n `GroupMembers`), createdAt.
-- **Participant**: id, name, grade?, sortOrder(Int, *legacy — לא בשימוש למיון*),
-  groups (m-n), events (m-n `EventParticipants`), createdAt.
-- **Event**: id, name, startDate/endDate (`@db.Date`), includeFriday/includeSaturday
-  (Bool), participants (m-n), days (EventDay[]), createdAt.
-- **EventDay**: id, eventId→Event(Cascade), date(`@db.Date`), description?, attendance,
-  `@@unique([eventId,date])`.
+- **Group**: id, name, participants (m-n `GroupMembers`), activitySlots[], createdAt.
+- **Participant**: id, name, grade?, sortOrder(Int,*legacy*), groups (m-n), events
+  (m-n `EventParticipants`), createdAt.
+- **Event**: id, name, startDate/endDate(`@db.Date`), includeFriday/includeSaturday
+  (Bool), participants (m-n), days[], createdAt.
+- **EventDay**: id, eventId→Event(Cascade), date(`@db.Date`), description?,
+  attendance[], activitySlots[], `@@unique([eventId,date])`.
+- **ActivitySlot**: id, eventDayId→EventDay(Cascade), startTime(String "HH:mm"),
+  endTime?, title, location?, groupId?→Group(SetNull), notes?, order, createdAt.
 - **EventAttendance**: id, eventDayId→EventDay(Cascade), participantId→Participant
   (Cascade), status, markedByUserId→User(SetNull), createdAt, updatedAt,
   `@@unique([eventDayId,participantId])`.
 - **AttendanceRecord**: *legacy מהיום היומי הישן — לא בשימוש, נשאר כדי לא למחוק נתונים.*
 
-### החלטות טכניות (סטיות מהבריף המקורי)
-1. **סיסמה במקום magic link** — פשוט לפרוס (בלי SMTP). נוסף `passwordHash` ל-User.
-2. **`role` נשאר String** — הרחבה ל-"parent" בעתיד בלי שינוי מבני.
-3. **הרשמה עצמית עם קוד** — נוסף אחרי הבריף (הצוות נרשם לבד, לא ידני).
-4. **Participant↔Group m-n** — במקום קבוצה יחידה (מיגרציה שמרה חברות קיימות).
-5. **נוכחות events-only** — הדף היומי הוסר.
-6. **חוב טכני קטן**: `AttendanceRecord` (legacy), `sortOrder` + `/api/participants/reorder`
-   (legacy מהמיון הידני שהוחלף במיון-כיתה) — לא בשימוש, אפשר לנקות במיגרציה עתידית.
+### מיגרציות (בסדר)
+0_init → add_participant_grade → add_events → add_participant_sort_order →
+groups_many_to_many (שומרת חברות קיימות) → add_activity_slots. כולן תוספתיות
+(פרט ל-m-n שהמירה groupId ל-join table עם שמירת נתונים).
+
+### החלטות/סטיות מהבריף
+1. סיסמה במקום magic link (בלי SMTP) → נוסף `passwordHash`.
+2. `role` String — הרחבה ל-"parent" בלי שינוי מבני.
+3. הרשמה עצמית עם קוד; נוכחות events-only; Participant↔Group m-n.
+4. **חוב טכני**: `AttendanceRecord` + `sortOrder`/`/api/participants/reorder` (legacy,
+   לא בשימוש) — אפשר לנקות במיגרציה עתידית.
 
 ## פריסה — מצב נוכחי
 - **Repo**: `github.com/Shahar-Werbner/Bilto-formali-maale-gamla` (public), `main`.
-  ריפו עצמאי, האפליקציה בשורש (אין Root Directory ב-Vercel).
-  (יש עותת נוסף גם בריפו `primo-s-fake-robot` תחת `attendance-app/`, branch
-  `claude/attendance-system-phase-1-0l8v83` — היסטורי, לא הריפו שנפרס.)
-- **Vercel**: מחובר לריפו, deploy אוטומטי על כל push.
-- **Neon (Postgres)**: נוצר ישירות בחשבון Neon של המשתמש.
-- **משתני סביבה ב-Vercel**: `DATABASE_URL` (pooled, `-pooler`), `DIRECT_URL`
-  (non-pooled), `AUTH_SECRET`, `SIGNUP_CODE` (קוד ההרשמה של הצוות).
-- **מיגרציות**: רצות אוטומטית ב-build —
-  `build: "prisma generate && prisma migrate deploy && next build"`.
+  ריפו עצמאי, האפליקציה בשורש (אין Root Directory ב-Vercel). (עותק היסטורי גם ב-
+  `primo-s-fake-robot` תחת `attendance-app/`.)
+- **Vercel**: מחובר, deploy אוטומטי על push. **Neon (Postgres)** בחשבון המשתמש.
+- **משתני סביבה ב-Vercel**: `DATABASE_URL` (pooled), `DIRECT_URL` (non-pooled),
+  `AUTH_SECRET`, `SIGNUP_CODE`, `ANTHROPIC_API_KEY` (ל-AI, אופציונלי), `AI_MODEL`
+  (אופציונלי). **שינוי env דורש Redeploy.**
+- **מיגרציות**: רצות אוטומטית ב-build (`prisma generate && prisma migrate deploy && next build`).
 
-### אילוץ סביבת פיתוח (חשוב לדעת)
-מסביבת ה-agent אין גישה ישירה ל-Postgres של Neon (יציאה 5432 חסומה, יוצא רק HTTPS).
-לכן:
-- מיגרציות מיושמות דרך build של Vercel.
-- הכנסת נתונים ידנית (משתמש ראשון, רשימת ילדים) — דרך **Neon SQL Editor** (ווב) עם
-  statements מוכנים; bcrypt hash מחושב מקומית.
-- פיתוח/בדיקות מול Postgres מקומי זמני; screenshots ב-Chromium (Playwright) לבדיקת RTL/מובייל.
+### אילוץ סביבת פיתוח (חשוב)
+מסביבת ה-agent אין גישה ישירה ל-Postgres של Neon (יציאה 5432 חסומה) ואין
+`ANTHROPIC_API_KEY`. לכן: מיגרציות דרך build של Vercel; הכנסת נתונים ידנית דרך Neon
+SQL Editor; פיתוח/בדיקות מול Postgres מקומי זמני + screenshots ב-Chromium/Playwright;
+את קריאת ה-AI האמיתית בודקים בפרודקשן (עם המפתח).
 
-## מצב הנתונים
-- משתמש/י צוות קיימים (role staff); צוות נרשם עצמאית דרך `/register` + קוד.
-- קבוצה "כללי" עם ~40 ילדים; הכיתות מולאו.
-- אירועים נוצרים דרך הממשק (למשל קייטנת קיץ 2–13/8, בלי שישי/שבת → 10 ימים).
-
-## צעדים הבאים אפשריים (שלבים עתידיים מהבריף)
-- סידור עבודה של הצוות, לוז פעילויות, הכנת פעילויות עם AI (תיאור היום כבר קיים
-  כשדה — מקום טבעי לחיבור AI), מעקב שעות עבודה.
+## צעדים הבאים אפשריים
+- מילוי/שיפור הלוז עם AI; חיבור AI גם ליצירת תיאור פעילות.
+- סידור עבודה של הצוות, מעקב שעות עבודה.
 - תפקיד "parent" (צפייה בנוכחות הילד בלבד) — התשתית (role, markedBy) מוכנה.
-- ניקוי חוב טכני: הסרת `AttendanceRecord` + `sortOrder`/reorder.
-- שדרוג Next ל-16 (כמה CVE של DoS מתוקנים רק שם; נדחה — major + React 19).
+- ניקוי חוב טכני (AttendanceRecord, sortOrder/reorder).
+- שדרוג Next ל-16 (כמה CVE של DoS מתוקנים רק שם — major + React 19, נדחה).
 - תזכורת תפעולית: לאפס את סיסמת ה-DB של Neon (נחשפה בצ'אט בזמן ההקמה).
