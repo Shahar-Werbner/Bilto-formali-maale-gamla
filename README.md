@@ -97,6 +97,13 @@ npm run typecheck
 רצות אוטומטית בכל build (`prisma generate && prisma migrate deploy && next build`).
 ידנית מול ה-DB של Neon: `npm run prisma:deploy`.
 
+> **⚠️ שימו לב: Vercel מריץ את ה-build גם ל-preview של כל PR.** כלומר מיגרציה
+> בתוך PR מוחלת על בסיס הנתונים שה-preview מוגדר אליו — לפני סקירה ולפני מיזוג.
+> אם משתני הסביבה מוגדרים ל-"All Environments" (ברירת המחדל), זה הפרודקשן.
+> מיגרציה הרסנית ב-PR כלשהו תפגע בנתונים החיים לפני שמישהו הספיק להסתכל.
+> מומלץ להגדיר ל-Preview בסיס נתונים נפרד (Neon תומך ב-branching). פירוט
+> ב-`docs/ROADMAP.md`.
+
 ### 3. משתני סביבה
 
 | משתנה | חובה | תיאור |
