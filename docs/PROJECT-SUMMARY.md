@@ -1,14 +1,30 @@
 # מערכת נוכחות מעלה גמלא — סיכום מלא (להעברה לקלוד)
 
-מסמך הקשר מלא להמשך פיתוח. המערכת **חיה ובשימוש** של הצוות. מסכם את כל מה שנבנה,
-המבנה, ההחלטות, ומצב הפריסה.
+מסמך הקשר מלא להמשך פיתוח. מסכם את כל מה שנבנה, המבנה, ההחלטות, ומצב הפריסה.
+
+**המערכת עדיין לא בשימוש** — היא בבנייה לקראת יום פעילות אמיתי ראשון. אין נתוני
+אמת להגן עליהם, ולכן שינויי מבנה הם זולים עכשיו ויקרים אחר כך.
 
 ## מה זה
+
 מערכת ניהול לחינוך הבלתי פורמלי במושב מעלה גמלא. הליבה: **סימון נוכחות מבוסס
 אירועים**, עם **לוז יומי מובנה** (כולל סידור אוטומטי עם AI). מתוכנן להרחבה: סידור
 עבודה, מעקב שעות עבודה, תפקיד הורה.
 
+### התפעול שהמערכת צריכה לשרת
+
+- ילדים בכיתות **א׳–ג׳**. כ-50 ברשימה, **35–40 מגיעים בפועל**.
+- **כל שלישי (3 שעות) וכל שישי (4 שעות)**, ובנוסף קייטנות בחופשות.
+- ביום פעילות: חלוקה לקבוצות, זמן אוכל, פעילויות חוץ ויצירה.
+- צוות: **מדריכי נוער (בני נוער)** ומדריכים בוגרים. בדרך כלל יותר מדריכי נוער,
+  והיחס משתנה.
+
+שתי השלכות שצריכות להנחות כל החלטה: המשתמשים הם לא פעם **בני נוער מהטלפון שלהם**,
+ולכן הממשק צריך להיות מובן מאליו ולא נלמד; והילדים בני **6–9**, ולכן כל מה שנוגע
+למי אוסף אותם בסוף היום הוא **קריטי לבטיחות**, לא נוחות.
+
 ## Stack
+
 - Next.js 14.2 (App Router, TypeScript), תיקיית `src/`
 - Prisma ORM 5.22 + PostgreSQL (Neon)
 - Auth.js (NextAuth v5 beta) — Credentials (email+סיסמה), JWT, split-config (edge-safe middleware)
@@ -16,7 +32,9 @@
 - עברית מלאה RTL, mobile-first · פריסה: Vercel
 
 ## פיצ'רים שנבנו
+
 ### התחברות, משתמשים והרשאות
+
 - `/login` — email + סיסמה. `/register` — הרשמה עצמית מוגנת ב**קוד צוות** (env
   `SIGNUP_CODE`); כל נרשם מקבל role `"staff"`. אין הרשמה אם `SIGNUP_CODE` לא מוגדר.
 - כל הדפים מוגנים ב-`middleware.ts`; `/register` ציבורי.
@@ -33,6 +51,7 @@
   במערכת מסנן `deletedAt: null`.
 
 ### אירועים (מנגנון הנוכחות)
+
 - `/events` — רשימה + מחיקה. `/events/new` — יצירה: שם, טווח תאריכים, checkbox נפרד
   ל"כלול שישי" ו"כלול שבת" (ברירת מחדל לא), ובחירת משתתפים מהרשימה הראשית. המערכת
   מייצרת `EventDay` לכל יום בטווח (מדלגת שישי/שבת אם לא סומנו).
@@ -52,6 +71,7 @@
 - הנוכחות היא **רק דרך אירועים** (אין דף יומי עצמאי).
 
 ### נוכחות עמידה בשטח (אופליין + PWA)
+
 - **תור שמירה מתמיד** (`src/lib/offline-queue.ts`): סימון נוכחות נכנס לתור,
   נשלח, ויורד מהתור **רק אחרי אישור מהשרת**. קודם ההתנהגות הייתה אופטימית עם
   rollback — כשל רשת פשוט ביטל את הלחיצה, כלומר העבודה אבדה בשטח.
@@ -73,6 +93,7 @@
   חייבת להיות עדכנית.
 
 ### לוז יומי (ActivitySlot)
+
 - בכל יום-אירוע: רשימת "סלוטים" ממוינת לפי order/שעה, עם שעה, כותרת, מיקום, תג קבוצה
   (אם ייעודי), והערות. הוספה/עריכה/מחיקה inline + חצי ▲▼ לשינוי סדר. שמירה מיידית.
 - **סידור אוטומטי עם AI**: כפתור "✨ סידור אוטומטי עם AI" — כותבים תיאור חופשי או
@@ -82,6 +103,7 @@
   `claude-opus-5`; אפשר `claude-haiku-4-5` לחיסכון).
 
 ### רשימת ילדים וקבוצות
+
 - `/roster` — "כל הילדים" (רשימה ראשית: הוספה, עריכת שם וכיתה inline, מחיקה) +
   "קבוצות" (יצירה/מחיקה, הוספת/הסרת חברים דרך dropdown). **שיוך מרובה**:
   Participant↔Group many-to-many — ילד בכמה קבוצות; מחיקת קבוצה לא מוחקת ילדים.
@@ -106,16 +128,19 @@
   כיתה בסוף) בכל הרשימות — לוגיקה ב-`src/lib/attendance.ts` (`gradeRank`/`sortByGrade`).
 
 ### ייצוא ל-Google Sheets / Excel
+
 - כל האירוע — `GET /api/events/[id]/export`. יום בודד — `GET /api/event-days/[id]/export`.
   `.xlsx` צבעוני (ירוק=נוכח/צהוב=איחור/אדום=נעדר), RTL, ממוין לפי כיתה, עם סיכומים. (exceljs)
 
 ### היסטוריה ודוחות
+
 - `/history` — כל יום-אירוע עם שם האירוע וסיכום נוכחים/איחורים/נעדרים.
 - `/reports` — **דוח לפי ילד/ה**: נוכח/איחור/נעדר ואחוז הגעה על פני כל האירועים.
   המכנה הוא כל ימי האירועים שהילד/ה רשומ/ה אליהם — **כולל ימים שלא סומנו**,
   אחרת ילד שהפסיק להגיע פשוט נעלם מהדוח. שאילתה אחת (`groupBy`) + ספירת ימים.
 
 ### איכות ועמידות (נוסף בסבב האחרון)
+
 - **`src/lib/api-error.ts`** — כל route עוטף את עצמו ב-try/catch וממפה שגיאות
   Prisma: `P2025`→404, `P2002`→409, `P2003`→400, אחרת 500 מלוגג. קודם כל מחיקה
   של רשומה שכבר נמחקה החזירה 500 עם stack trace.
@@ -127,6 +152,7 @@
 - **בדיקות**: `npm test` (vitest) — 21 בדיקות על הלוגיקה הטהורה.
 
 ## מבנה קבצים (עיקרי)
+
 ```
 prisma/schema.prisma, prisma/migrations/*, prisma/seed.ts
 src/auth.ts, src/auth.config.ts, src/middleware.ts
@@ -148,10 +174,11 @@ src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
 ```
 
 ## מודל הנתונים (Prisma, נוכחי)
+
 - **User**: id, email(unique), name, role(String: "admin"|"staff"), passwordHash?, createdAt.
 - **Group**: id, name, participants (m-n `GroupMembers`), activitySlots[], createdAt.
 - **Participant**: id, name, grade?, parentName?, parentPhone?, phone?, deletedAt?,
-  sortOrder(Int,*legacy — כבר לא נכתב ולא ממיין*), groups (m-n), events
+  sortOrder(Int,_legacy — כבר לא נכתב ולא ממיין_), groups (m-n), events
   (m-n `EventParticipants`), createdAt.
 - **Event**: id, name, startDate/endDate(`@db.Date`), includeFriday/includeSaturday
   (Bool), deletedAt?, participants (m-n), days[], createdAt.
@@ -162,9 +189,10 @@ src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
 - **EventAttendance**: id, eventDayId→EventDay(Cascade), participantId→Participant
   (Cascade), status, markedByUserId→User(SetNull), createdAt, updatedAt,
   `@@unique([eventDayId,participantId])`.
-- **AttendanceRecord**: *legacy מהיום היומי הישן — לא בשימוש, נשאר כדי לא למחוק נתונים.*
+- **AttendanceRecord**: _legacy מהיום היומי הישן — לא בשימוש, נשאר כדי לא למחוק נתונים._
 
 ### מיגרציות (בסדר)
+
 0_init → add_participant_grade → add_events → add_participant_sort_order →
 groups_many_to_many (שומרת חברות קיימות) → add_activity_slots →
 **add_roles_soft_delete_contacts**. כולן תוספתיות (פרט ל-m-n שהמירה groupId
@@ -178,6 +206,7 @@ groups_many_to_many (שומרת חברות קיימות) → add_activity_slots 
 אחד. הוא idempotent (לא עושה כלום אם כבר יש admin).
 
 ### החלטות/סטיות מהבריף
+
 1. סיסמה במקום magic link (בלי SMTP) → נוסף `passwordHash`.
 2. `role` String — הרחבה ל-"parent" בלי שינוי מבני.
 3. הרשמה עצמית עם קוד; נוכחות events-only; Participant↔Group m-n.
@@ -188,6 +217,7 @@ groups_many_to_many (שומרת חברות קיימות) → add_activity_slots 
    **לא נאגר** — החלטה מודעת; הסכמה תומכת בהוספה בהמשך בלי שינוי מבני.
 
 ## פריסה — מצב נוכחי
+
 - **Repo**: `github.com/Shahar-Werbner/Bilto-formali-maale-gamla` (public), `main`.
   ריפו עצמאי, האפליקציה בשורש (אין Root Directory ב-Vercel). (עותק היסטורי גם ב-
   `primo-s-fake-robot` תחת `attendance-app/`.)
@@ -198,12 +228,14 @@ groups_many_to_many (שומרת חברות קיימות) → add_activity_slots 
 - **מיגרציות**: רצות אוטומטית ב-build (`prisma generate && prisma migrate deploy && next build`).
 
 ### אילוץ סביבת פיתוח (חשוב)
+
 מסביבת ה-agent אין גישה ישירה ל-Postgres של Neon (יציאה 5432 חסומה) ואין
 `ANTHROPIC_API_KEY`. לכן: מיגרציות דרך build של Vercel; הכנסת נתונים ידנית דרך Neon
 SQL Editor; פיתוח/בדיקות מול Postgres מקומי זמני + screenshots ב-Chromium/Playwright;
 את קריאת ה-AI האמיתית בודקים בפרודקשן (עם המפתח).
 
 ## צעדים הבאים אפשריים (לפי סדר תשואה)
+
 תוכנית העבודה המלאה וחלוקת העבודה בין סשנים: **`docs/ROADMAP.md`**.
 
 1. ~~**תפקיד admin**~~ — ✅ נבנה.
