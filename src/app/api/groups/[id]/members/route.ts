@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
+import { handleApiError } from "@/lib/api-error";
 
 // POST /api/groups/:id/members — add a participant to the group.
 // Body: { participantId }
@@ -11,18 +12,22 @@ export async function POST(
   const { response } = await requireSession();
   if (response) return response;
 
-  const body = await request.json().catch(() => null);
-  const participantId =
-    typeof body?.participantId === "string" ? body.participantId : "";
-  if (!participantId) {
-    return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
-  }
+  try {
+    const body = await request.json().catch(() => null);
+    const participantId =
+      typeof body?.participantId === "string" ? body.participantId : "";
+    if (!participantId) {
+      return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
+    }
 
-  await prisma.group.update({
-    where: { id: params.id },
-    data: { participants: { connect: { id: participantId } } },
-  });
-  return NextResponse.json({ ok: true });
+    await prisma.group.update({
+      where: { id: params.id },
+      data: { participants: { connect: { id: participantId } } },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }
 
 // DELETE /api/groups/:id/members?participantId=... — remove from the group
@@ -34,15 +39,19 @@ export async function DELETE(
   const { response } = await requireSession();
   if (response) return response;
 
-  const participantId =
-    new URL(request.url).searchParams.get("participantId") ?? "";
-  if (!participantId) {
-    return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
-  }
+  try {
+    const participantId =
+      new URL(request.url).searchParams.get("participantId") ?? "";
+    if (!participantId) {
+      return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
+    }
 
-  await prisma.group.update({
-    where: { id: params.id },
-    data: { participants: { disconnect: { id: participantId } } },
-  });
-  return NextResponse.json({ ok: true });
+    await prisma.group.update({
+      where: { id: params.id },
+      data: { participants: { disconnect: { id: participantId } } },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

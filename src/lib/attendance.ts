@@ -26,8 +26,14 @@ export function formatDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function todayDateOnly(): string {
-  return formatDateOnly(new Date());
+// The team is in Israel; the server runs in UTC. Deriving "today" from the raw
+// UTC date makes the app show yesterday between midnight and 02:00/03:00 local
+// time, so resolve the calendar day in the local timezone instead.
+export const LOCAL_TIMEZONE = "Asia/Jerusalem";
+
+export function todayDateOnly(now: Date = new Date()): string {
+  // "en-CA" formats as YYYY-MM-DD, which is exactly our date-only shape.
+  return now.toLocaleDateString("en-CA", { timeZone: LOCAL_TIMEZONE });
 }
 
 // ── Grade ordering (כיתה) ────────────────────────────────────────────────
