@@ -1,0 +1,29 @@
+# Runs the same three checks a contributor runs locally. With several tracks
+# developed in parallel (see docs/ROADMAP.md), this is what catches one track
+# breaking another before it reaches main — and main deploys to production.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # The Prisma client is generated, not committed; typecheck needs it.
+      # These urls are never connected to — they only satisfy schema validation.
+      - run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://placeholder@localhost:5432/placeholder
+          DIRECT_URL: postgresql://placeholder@localhost:5432/placeholder
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test

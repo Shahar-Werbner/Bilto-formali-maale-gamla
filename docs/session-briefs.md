@@ -2,6 +2,10 @@
 
 כל בלוק כאן הוא פרומפט שלם להדבקה בסשן נפרד.
 
+**לפני שבודקים משהו מול DB או דפדפן — `docs/dev-environment.md`.** הוא מכיל את
+המתכון המדויק (Postgres מקומי, התחברות עם CSRF, Playwright, צילום ברוחב טלפון)
+ואת המלכודות שכבר עלו בזמן. אל תגלו אותן מחדש.
+
 **גל 0 כבר הושלם ונמצא בענף `claude/system-development-continuation-5uuneg`.**
 לפני שמתחילים את A ו-B: למזג אותו ל-`main`. אחרי זה שני הסשנים יוצאים
 מ-`main` המעודכן, כל אחד לענף משלו. סדר מיזוג בסוף: A ואז B.
@@ -20,6 +24,9 @@
 - `/admin` — ניהול תפקידים וסל מחזור. בבעלות אף אחד מהמסלולים; אל תיגעו.
 - `Participant` כולל `parentName`, `parentPhone`, `phone` — מוכנים לשימוש.
 - `vitest.config.ts` עם alias `@/` — אפשר לייבא בבדיקות בדיוק כמו באפליקציה.
+- **CI** (`.github/workflows/ci.yml`) מריץ lint + typecheck + test על כל PR.
+- **SessionStart hook** (`.claude/hooks/session-start.sh`) מתקין תלויות ומריץ
+  `prisma generate` בפתיחת סשן web, כך שהבדיקות עובדות מיד.
 
 ---
 
