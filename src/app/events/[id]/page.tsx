@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import EventBoard from "@/components/EventBoard";
 import type { Slot } from "@/components/DaySchedule";
 import { formatDateOnly, sortByGrade } from "@/lib/attendance";
+import { isEventKind } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function EventPage({
     prisma.event.findFirst({
       where: { id: params.id, deletedAt: null },
       include: {
+        weekdays: { orderBy: { weekday: "asc" } },
         participants: {
           where: { deletedAt: null },
           orderBy: { createdAt: "asc" },
@@ -79,8 +81,16 @@ export default async function EventPage({
     name: event.name,
     startDate: formatDateOnly(event.startDate),
     endDate: formatDateOnly(event.endDate),
+    kind: isEventKind(event.kind) ? event.kind : ("camp" as const),
     includeFriday: event.includeFriday,
     includeSaturday: event.includeSaturday,
+    defaultStartTime: event.defaultStartTime,
+    defaultEndTime: event.defaultEndTime,
+    weekdays: event.weekdays.map((w) => ({
+      weekday: w.weekday,
+      startTime: w.startTime,
+      endTime: w.endTime,
+    })),
     participants: sortByGrade(
       event.participants.map((p) => ({
         id: p.id,
@@ -92,6 +102,8 @@ export default async function EventPage({
       id: d.id,
       date: formatDateOnly(d.date),
       description: d.description,
+      startTime: d.startTime,
+      endTime: d.endTime,
     })),
   };
 

@@ -78,31 +78,69 @@ model AttendanceRecord {
 }
 
 // ── Events ──────────────────────────────────────────────────────────────────
-// An Event (e.g. a camp) spans a date range. Its EventDays are the concrete
-// days attendance is taken on (weekends excluded unless explicitly included).
+// An Event spans a date range and owns the concrete days attendance is taken
+// on. Two shapes, chosen by `kind`:
+//   "camp"      — every day in the range (weekends skipped unless included),
+//                 all running the event's default hours.
+//   "recurring" — only the weekdays listed in `weekdays`, each with its own
+//                 hours. This is what a school year looks like here: every
+//                 Tuesday 16:00–19:00 and every Friday 09:00–13:00, one event.
 // Each event has its own selected list of participants.
 
 model Event {
-  id              String        @id @default(cuid())
-  name            String
-  startDate       DateTime      @db.Date
-  endDate         DateTime      @db.Date
-  includeFriday   Boolean       @default(false)
-  includeSaturday Boolean       @default(false)
-  deletedAt       DateTime? // soft delete — see Participant.deletedAt
-  participants    Participant[] @relation("EventParticipants")
-  days            EventDay[]
-  createdAt       DateTime      @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  // "recurring" | "camp". A plain String for the same reason User.role is:
+  // another shape can be added without a structural migration.
+  kind      String   @default("camp")
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+
+  // camp only — the weekend checkboxes and the hours every generated day gets.
+  includeFriday    Boolean @default(false)
+  includeSaturday  Boolean @default(false)
+  defaultStartTime String? // "HH:mm"
+  defaultEndTime   String? // "HH:mm"
+
+  // recurring only — one row per weekday the event runs on.
+  weekdays EventWeekday[]
+
+  deletedAt    DateTime? // soft delete — see Participant.deletedAt
+  participants Participant[] @relation("EventParticipants")
+  days         EventDay[]
+  createdAt    DateTime      @default(now())
 
   @@index([deletedAt])
 }
 
+// One weekday of a recurring event's pattern, with the hours it runs.
+// A table rather than an Int[] because each weekday needs its own hours:
+// "Tue 16:00–19:00, Fri 09:00–13:00" cannot be expressed by a list of numbers.
+model EventWeekday {
+  id        String @id @default(cuid())
+  eventId   String
+  event     Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  weekday   Int // 0=Sunday … 6=Saturday, matching JS getUTCDay()
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm"
+
+  @@unique([eventId, weekday])
+  @@index([eventId])
+}
+
 model EventDay {
-  id            String            @id @default(cuid())
-  eventId       String
-  event         Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  date          DateTime          @db.Date
-  description   String? // תיאור פעילות — free text, later AI-generated (general note)
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  description String? // תיאור פעילות — free text, later AI-generated (general note)
+
+  // Copied from the event's template when the day is generated, and editable
+  // for a single day without touching the template. Staff hours are derived
+  // from these, so they are per-day data, not display.
+  startTime String? // "HH:mm"
+  endTime   String? // "HH:mm"
+
   attendance    EventAttendance[]
   activitySlots ActivitySlot[]
   createdAt     DateTime          @default(now())

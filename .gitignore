@@ -36,3 +36,7 @@ next-env.d.ts.bak
 
 # prisma
 /prisma/*.db
+
+
+# local API-testing artifact (docs/dev-environment.md)
+cookies.txt

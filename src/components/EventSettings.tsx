@@ -2,15 +2,41 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { EventKind, WeekdayTemplate } from "@/lib/events";
+import ScheduleFields, {
+  toRequestBody,
+  validateSchedule,
+  type ScheduleState,
+  type WeekdayRow,
+} from "./ScheduleFields";
 
 export type EventSettingsData = {
   id: string;
   name: string;
   startDate: string;
   endDate: string;
+  kind: EventKind;
   includeFriday: boolean;
   includeSaturday: boolean;
+  defaultStartTime: string | null;
+  defaultEndTime: string | null;
+  weekdays: WeekdayTemplate[];
 };
+
+function scheduleOf(event: EventSettingsData): ScheduleState {
+  const weekdays: Record<number, WeekdayRow> = {};
+  for (const w of event.weekdays) {
+    weekdays[w.weekday] = { startTime: w.startTime, endTime: w.endTime };
+  }
+  return {
+    kind: event.kind,
+    includeFriday: event.includeFriday,
+    includeSaturday: event.includeSaturday,
+    defaultStartTime: event.defaultStartTime ?? "",
+    defaultEndTime: event.defaultEndTime ?? "",
+    weekdays,
+  };
+}
 
 // Edit an existing event: rename it, or stretch/shrink its date range when a
 // camp gets extended or cut short. Days that already hold attendance or a
@@ -21,8 +47,9 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
   const [name, setName] = useState(event.name);
   const [startDate, setStartDate] = useState(event.startDate);
   const [endDate, setEndDate] = useState(event.endDate);
-  const [includeFriday, setIncludeFriday] = useState(event.includeFriday);
-  const [includeSaturday, setIncludeSaturday] = useState(event.includeSaturday);
+  const [schedule, setSchedule] = useState<ScheduleState>(() =>
+    scheduleOf(event),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -35,6 +62,11 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
       setError("יש למלא שם, תאריך התחלה ותאריך סיום");
       return;
     }
+    const scheduleError = validateSchedule(schedule, startDate, endDate);
+    if (scheduleError) {
+      setError(scheduleError);
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch(`/api/events/${event.id}`, {
@@ -44,8 +76,7 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
           name: name.trim(),
           startDate,
           endDate,
-          includeFriday,
-          includeSaturday,
+          ...toRequestBody(schedule),
         }),
       });
       const data = await res.json().catch(() => null);
@@ -54,6 +85,7 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
       const parts: string[] = [];
       if (data?.added) parts.push(`נוספו ${data.added} ימים`);
       if (data?.removed) parts.push(`הוסרו ${data.removed} ימים`);
+      if (data?.retimed) parts.push(`עודכנו שעות ב-${data.retimed} ימים`);
       if (data?.keptWithData)
         parts.push(`${data.keptWithData} ימים עם נתונים נשמרו ולא נמחקו`);
       setNotice(parts.length ? parts.join(" · ") : "נשמר");
@@ -107,26 +139,13 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
             </label>
           </div>
 
-          <div className="flex gap-4 text-sm text-slate-700">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={includeFriday}
-                onChange={(e) => setIncludeFriday(e.target.checked)}
-                className="h-4 w-4"
-              />
-              כולל שישי
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={includeSaturday}
-                onChange={(e) => setIncludeSaturday(e.target.checked)}
-                className="h-4 w-4"
-              />
-              כולל שבת
-            </label>
-          </div>
+          <ScheduleFields
+            state={schedule}
+            onChange={setSchedule}
+            startDate={startDate}
+            endDate={endDate}
+            compact
+          />
 
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -140,8 +159,9 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
           )}
 
           <p className="text-xs text-slate-400">
-            שינוי הטווח מוסיף ימים חסרים. ימים שכבר יש בהם נוכחות או לוז לא
-            יימחקו גם אם הם מחוץ לטווח החדש.
+            שינוי הטווח או ימי השבוע מוסיף ימים חסרים. ימים שכבר יש בהם נוכחות
+            או לוז לא יימחקו גם אם הם מחוץ לתבנית החדשה. שינוי שעות מתעדכן רק
+            בימים שלא שונו ידנית.
           </p>
 
           <button
