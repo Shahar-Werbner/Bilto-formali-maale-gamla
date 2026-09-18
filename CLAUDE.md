@@ -113,6 +113,8 @@ result at 390px wide**, which is how the team actually uses this.
 - `docs/dev-environment.md` — how to test for real.
 - `docs/changes/` — per-track notes, so parallel sessions never edit the same
   summary file.
+- `docs/WORKING-GUIDE.md` — written for the project owner, not for you. Do not
+  restructure it to suit a session; if something in it is wrong, say so.
 
 Merging: with CI green and behaviour verified, merge. Stop and ask first for a
 destructive migration, a permissions change, or anything hard to undo.
