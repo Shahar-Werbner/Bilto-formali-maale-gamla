@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { liveActivitySlotsOfDay } from "@/lib/event-scope";
 
 // POST /api/event-days/:id/activity-slots/reorder — persist a new slot order.
 // Body: { orderedIds: string[] }  → order = index.
@@ -25,7 +26,7 @@ export async function POST(
     // before writing — otherwise a stale or crafted request could reshuffle
     // another day's schedule.
     const owned = await prisma.activitySlot.findMany({
-      where: { eventDayId: params.id, id: { in: orderedIds } },
+      where: { ...liveActivitySlotsOfDay(params.id), id: { in: orderedIds } },
       select: { id: true },
     });
     if (owned.length !== orderedIds.length) {

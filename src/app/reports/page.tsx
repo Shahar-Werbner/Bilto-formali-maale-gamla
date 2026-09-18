@@ -48,6 +48,10 @@ export default async function ReportsPage() {
     }),
     prisma.eventAttendance.groupBy({
       by: ["participantId", "status"],
+      // The denominator below counts days of live events only, so the marks
+      // have to be scoped the same way. Counting marks from a deleted event
+      // against days that no longer exist produced rates over 100%.
+      where: { eventDay: { event: { deletedAt: null } } },
       _count: { _all: true },
     }),
   ]);

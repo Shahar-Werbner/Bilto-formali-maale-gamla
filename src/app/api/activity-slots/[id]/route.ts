@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { liveActivitySlot, slotNotFound } from "@/lib/event-scope";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -65,6 +66,14 @@ export async function PATCH(
       data.groupId = v;
     }
 
+    // `update` takes no relation filter, so confirm the slot hangs off a live
+    // event before writing to it.
+    const owned = await prisma.activitySlot.findFirst({
+      where: liveActivitySlot(params.id),
+      select: { id: true },
+    });
+    if (!owned) return slotNotFound();
+
     const slot = await prisma.activitySlot.update({
       where: { id: params.id },
       data,
@@ -85,7 +94,10 @@ export async function DELETE(
   if (response) return response;
 
   try {
-    await prisma.activitySlot.delete({ where: { id: params.id } });
+    const deleted = await prisma.activitySlot.deleteMany({
+      where: liveActivitySlot(params.id),
+    });
+    if (deleted.count === 0) return slotNotFound();
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);

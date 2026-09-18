@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { isStatus } from "@/lib/attendance";
+import { eventDayNotFound, liveEventDay } from "@/lib/event-scope";
 
 // POST /api/event-attendance/bulk — set the same status for participants of the
 // event on a given day. Body: { eventDayId, status, participantIds? }
@@ -24,8 +25,11 @@ export async function POST(request: Request) {
     }
 
     // The event's participants (via the day → event → participants relation).
-    const day = await prisma.eventDay.findUnique({
-      where: { id: eventDayId },
+    // Scoped to a live event for the same reason the single-mark route is:
+    // otherwise "mark everyone present" silently wrote into a deleted event
+    // while marking one child by hand correctly returned 404.
+    const day = await prisma.eventDay.findFirst({
+      where: liveEventDay(eventDayId),
       include: {
         event: {
           include: {
@@ -34,9 +38,7 @@ export async function POST(request: Request) {
         },
       },
     });
-    if (!day) {
-      return NextResponse.json({ error: "יום לא נמצא" }, { status: 404 });
-    }
+    if (!day) return eventDayNotFound();
     const participants = only
       ? day.event.participants.filter((p) => only.includes(p.id))
       : day.event.participants;
