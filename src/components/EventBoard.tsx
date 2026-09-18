@@ -9,7 +9,7 @@ import {
   todayDateOnly,
   type Status,
 } from "@/lib/attendance";
-import { formatHebrewDate } from "@/lib/events";
+import { formatHebrewDate, formatTimeRange, hoursBetween } from "@/lib/events";
 import DaySchedule, { type Slot } from "./DaySchedule";
 import EventSettings, { type EventSettingsData } from "./EventSettings";
 import SaveStatus from "./SaveStatus";
@@ -21,7 +21,13 @@ import {
 } from "@/lib/offline-queue";
 
 type Participant = { id: string; name: string; grade?: string | null };
-type Day = { id: string; date: string; description: string | null };
+type Day = {
+  id: string;
+  date: string;
+  description: string | null;
+  startTime: string | null;
+  endTime: string | null;
+};
 type Group = { id: string; name: string; memberIds: string[] };
 type EventData = EventSettingsData & {
   participants: Participant[];
@@ -497,12 +503,29 @@ export default function EventBoard({
       </div>
 
       {selectedDay && (
-        <a
-          href={`/api/event-days/${selectedDayId}/export`}
-          className="inline-flex w-fit items-center gap-1 self-start rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-        >
-          ⬇ ייצוא היום הנבחר
-        </a>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {/* The hours of the session, not decoration: staff hours are derived
+              from them, so a wrong pair has to be visible on the day itself. */}
+          {formatTimeRange(selectedDay.startTime, selectedDay.endTime) ? (
+            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">
+              <span dir="ltr">
+                {formatTimeRange(selectedDay.startTime, selectedDay.endTime)}
+              </span>
+              {" · "}
+              {hoursBetween(selectedDay.startTime, selectedDay.endTime)} שעות
+            </span>
+          ) : (
+            <span className="rounded-lg bg-slate-50 px-3 py-1.5 text-sm text-slate-400">
+              לא הוגדרו שעות ליום זה
+            </span>
+          )}
+          <a
+            href={`/api/event-days/${selectedDayId}/export`}
+            className="inline-flex w-fit items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            ⬇ ייצוא היום הנבחר
+          </a>
+        </div>
       )}
 
       {error && (

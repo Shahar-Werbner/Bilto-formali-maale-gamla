@@ -2,6 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import ScheduleFields, {
+  emptySchedule,
+  toRequestBody,
+  validateSchedule,
+  type ScheduleState,
+} from "./ScheduleFields";
 
 type Participant = { id: string; name: string; grade?: string | null };
 
@@ -20,8 +26,9 @@ export default function NewEventForm({
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [includeFriday, setIncludeFriday] = useState(false);
-  const [includeSaturday, setIncludeSaturday] = useState(false);
+  // A recurring weekly pattern is the common case here — the year is every
+  // Tuesday and every Friday — so that is what the form opens on.
+  const [schedule, setSchedule] = useState<ScheduleState>(emptySchedule);
   const [selected, setSelected] = useState<Set<string>>(new Set(allIds));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,6 +54,11 @@ export default function NewEventForm({
       setError("יש למלא שם, תאריך התחלה ותאריך סיום");
       return;
     }
+    const scheduleError = validateSchedule(schedule, startDate, endDate);
+    if (scheduleError) {
+      setError(scheduleError);
+      return;
+    }
     if (selected.size === 0) {
       setError("יש לבחור לפחות משתתף אחד");
       return;
@@ -60,8 +72,7 @@ export default function NewEventForm({
           name: name.trim(),
           startDate,
           endDate,
-          includeFriday,
-          includeSaturday,
+          ...toRequestBody(schedule),
           participantIds: Array.from(selected),
         }),
       });
@@ -85,7 +96,7 @@ export default function NewEventForm({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="למשל: קייטנת קיץ"
+            placeholder="למשל: שנת פעילות תשפ״ז"
             className="rounded-lg border border-slate-300 px-3 py-3 text-base"
           />
         </label>
@@ -111,31 +122,13 @@ export default function NewEventForm({
           </label>
         </div>
 
-        <div className="mt-3 flex flex-col gap-2">
-          <span className="text-sm font-medium text-slate-700">
-            לכלול סופי שבוע?
-          </span>
-          <label className="flex items-center gap-2 text-slate-700">
-            <input
-              type="checkbox"
-              checked={includeFriday}
-              onChange={(e) => setIncludeFriday(e.target.checked)}
-              className="h-5 w-5"
-            />
-            לכלול ימי שישי
-          </label>
-          <label className="flex items-center gap-2 text-slate-700">
-            <input
-              type="checkbox"
-              checked={includeSaturday}
-              onChange={(e) => setIncludeSaturday(e.target.checked)}
-              className="h-5 w-5"
-            />
-            לכלול ימי שבת
-          </label>
-          <p className="text-xs text-slate-400">
-            כברירת מחדל שישי ושבת אינם נכללים באירוע.
-          </p>
+        <div className="mt-4">
+          <ScheduleFields
+            state={schedule}
+            onChange={setSchedule}
+            startDate={startDate}
+            endDate={endDate}
+          />
         </div>
       </div>
 

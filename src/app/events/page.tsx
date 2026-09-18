@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import AppHeader from "@/components/AppHeader";
 import DeleteEventButton from "@/components/DeleteEventButton";
 import { formatDateOnly } from "@/lib/attendance";
-import { formatHebrewDate } from "@/lib/events";
+import { WEEKDAY_NAMES, formatHebrewDate } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,10 @@ export default async function EventsPage() {
   const events = await prisma.event.findMany({
     where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { days: true, participants: true } } },
+    include: {
+      weekdays: { orderBy: { weekday: "asc" } },
+      _count: { select: { days: true, participants: true } },
+    },
   });
 
   return (
@@ -53,7 +56,19 @@ export default async function EventsPage() {
                     {formatHebrewDate(formatDateOnly(e.endDate))}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400">
-                    {e._count.days} ימים · {e._count.participants} משתתפים
+                    {/* A recurring event covers a year of dates but only runs on
+                        a few weekdays — without saying which, the date range
+                        above reads as "every day until June". */}
+                    {e.kind === "recurring" && e.weekdays.length > 0 && (
+                      <>
+                        כל יום{" "}
+                        {e.weekdays
+                          .map((w) => WEEKDAY_NAMES[w.weekday])
+                          .join(", ")}{" "}
+                        ·{" "}
+                      </>
+                    )}
+                    {e._count.days} מפגשים · {e._count.participants} משתתפים
                   </div>
                 </Link>
                 {session?.user?.role === "admin" && (
