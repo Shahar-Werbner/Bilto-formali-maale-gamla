@@ -12,6 +12,13 @@ import {
 import { formatHebrewDate } from "@/lib/events";
 import DaySchedule, { type Slot } from "./DaySchedule";
 import EventSettings, { type EventSettingsData } from "./EventSettings";
+import SaveStatus from "./SaveStatus";
+import {
+  createQueue,
+  PermanentSendError,
+  type AttendanceQueue,
+  type PendingMark,
+} from "@/lib/offline-queue";
 
 type Participant = { id: string; name: string; grade?: string | null };
 type Day = { id: string; date: string; description: string | null };
@@ -79,6 +86,9 @@ export default function EventBoard({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(0);
+  const [online, setOnline] = useState(true);
+  const queueRef = useRef<AttendanceQueue | null>(null);
   // Holds the ids that were unmarked when the filter was switched on. Filtering
   // live would make each row vanish the moment it is marked, shifting the list
   // under the next tap — on a phone that means marking the wrong child.
@@ -98,6 +108,78 @@ export default function EventBoard({
     [event.days, selectedDayId],
   );
 
+  // One queue for the whole board, created on the client only (localStorage
+  // does not exist during server rendering).
+  useEffect(() => {
+    if (queueRef.current) return;
+    queueRef.current = createQueue({
+      storage: window.localStorage,
+      onChange: (marks: PendingMark[]) => setPending(marks.length),
+      onDropped: (mark, err) => {
+        // The server refused it for good — say so instead of leaving a tick
+        // the user believes was saved.
+        setError(`סימון אחד לא נשמר: ${err.message}`);
+        setStatuses((s) => {
+          const next = { ...s };
+          delete next[mark.participantId];
+          return next;
+        });
+      },
+      send: async (mark) => {
+        const res = await fetch("/api/event-attendance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventDayId: mark.eventDayId,
+            participantId: mark.participantId,
+            status: mark.status,
+          }),
+        });
+        if (res.ok) return;
+        // 4xx means this mark will never succeed; anything else is worth
+        // retrying when the connection is better.
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          const data = await res.json().catch(() => null);
+          throw new PermanentSendError(data?.error ?? "נדחה על ידי השרת");
+        }
+        throw new Error(`שגיאת שרת (${res.status})`);
+      },
+    });
+    setPending(queueRef.current.pending().length);
+    setOnline(navigator.onLine);
+    void queueRef.current.flush();
+  }, []);
+
+  // Drain when the connection comes back, and keep trying while it is down —
+  // `online` lies often enough (captive portals, flaky mobile data) that a
+  // slow poll is the honest backstop.
+  useEffect(() => {
+    const goOnline = () => {
+      setOnline(true);
+      void queueRef.current?.flush();
+    };
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    const timer = setInterval(() => {
+      if (queueRef.current?.pending().length) void queueRef.current.flush();
+    }, 15000);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+      clearInterval(timer);
+    };
+  }, []);
+
+  // A tab closed with marks still queued would lose them silently.
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (queueRef.current?.pending().length) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
   const loadDay = useCallback(async (dayId: string) => {
     if (!dayId) return;
     setLoading(true);
@@ -108,7 +190,14 @@ export default function EventBoard({
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setStatuses(data.byParticipant ?? {});
+      const fromServer: Record<string, Status> = data.byParticipant ?? {};
+      // Anything still queued for this day is newer than what the server just
+      // returned, so it wins — otherwise switching days would visibly undo
+      // taps that simply have not been sent yet.
+      for (const mark of queueRef.current?.pending() ?? []) {
+        if (mark.eventDayId === dayId) fromServer[mark.participantId] = mark.status;
+      }
+      setStatuses(fromServer);
     } catch {
       setError("שגיאה בטעינת הנתונים");
     } finally {
@@ -121,29 +210,33 @@ export default function EventBoard({
     loadDay(selectedDayId);
   }, [selectedDayId, loadDay]);
 
-  async function setStatus(participantId: string, status: Status) {
-    const prev = statuses[participantId];
+  // The tap is recorded locally and then sent. It is never rolled back on a
+  // network failure — that is what used to lose a day's work in the field.
+  function setStatus(participantId: string, status: Status) {
     setStatuses((s) => ({ ...s, [participantId]: status }));
-    try {
-      const res = await fetch("/api/event-attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventDayId: selectedDayId, participantId, status }),
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      setStatuses((s) => {
-        const next = { ...s };
-        if (prev) next[participantId] = prev;
-        else delete next[participantId];
-        return next;
-      });
-      setError("השמירה נכשלה, נסו שוב");
-    }
+    queueRef.current?.enqueue({
+      eventDayId: selectedDayId,
+      participantId,
+      status,
+    });
+    void queueRef.current?.flush();
   }
 
+  // Queues one mark per child. Used when the single bulk request cannot go out.
+  function queueMany(ids: string[], status: Status) {
+    for (const participantId of ids) {
+      queueRef.current?.enqueue({
+        eventDayId: selectedDayId,
+        participantId,
+        status,
+      });
+    }
+    void queueRef.current?.flush();
+  }
+
+  // One request for the whole group when the network allows it; otherwise the
+  // marks go into the queue individually and drain later.
   async function markAll(status: Status) {
-    const prev = { ...statuses };
     setStatuses(() => {
       const next: Record<string, Status> = {};
       for (const p of participants) next[p.id] = status;
@@ -157,8 +250,10 @@ export default function EventBoard({
       });
       if (!res.ok) throw new Error();
     } catch {
-      setStatuses(prev);
-      setError("השמירה נכשלה, נסו שוב");
+      queueMany(
+        participants.map((p) => p.id),
+        status,
+      );
     }
   }
 
@@ -168,7 +263,6 @@ export default function EventBoard({
       .filter((p) => !statuses[p.id])
       .map((p) => p.id);
     if (remaining.length === 0) return;
-    const prev = { ...statuses };
     setStatuses((s) => {
       const next = { ...s };
       for (const id of remaining) next[id] = status;
@@ -186,8 +280,7 @@ export default function EventBoard({
       });
       if (!res.ok) throw new Error();
     } catch {
-      setStatuses(prev);
-      setError("השמירה נכשלה, נסו שוב");
+      queueMany(remaining, status);
     }
   }
 
@@ -452,8 +545,9 @@ export default function EventBoard({
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-slate-900">
+                <span className="flex items-center gap-2 font-bold text-slate-900">
                   נוכחות {loading && <span className="text-slate-400">…</span>}
+                  <SaveStatus pending={pending} online={online} />
                 </span>
                 <button
                   onClick={() => markAll("present")}
