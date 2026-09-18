@@ -1,9 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { sortByGrade } from "@/lib/attendance";
+import { normalizeName } from "@/lib/participants";
+import RosterImport from "./RosterImport";
+import ParticipantRow from "./ParticipantRow";
 
-type Participant = { id: string; name: string; grade?: string | null };
+export type Participant = {
+  id: string;
+  name: string;
+  grade?: string | null;
+  parentName?: string | null;
+  parentPhone?: string | null;
+  phone?: string | null;
+};
 type Group = { id: string; name: string; memberIds: string[] };
 
 export default function RosterManager({
@@ -15,10 +26,12 @@ export default function RosterManager({
   initialGroups: Group[];
   isAdmin?: boolean;
 }) {
+  const router = useRouter();
   const [participants, setParticipants] =
     useState<Participant[]>(initialParticipants);
   const [groups, setGroups] = useState<Group[]>(initialGroups);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const byId = (id: string) => participants.find((p) => p.id === id);
 
@@ -50,22 +63,41 @@ export default function RosterManager({
     }
   }
 
-  async function updateGrade(id: string, grade: string) {
+  // One handler for every editable field on a child.
+  async function updateParticipant(id: string, patch: Partial<Participant>) {
     const prev = participants;
-    const value = grade.trim() || null;
     setParticipants((list) =>
-      list.map((p) => (p.id === id ? { ...p, grade: value } : p)),
+      list.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     );
     try {
       const res = await fetch(`/api/participants/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ grade: grade.trim() }),
+        body: JSON.stringify(patch),
       });
-      if (!res.ok) throw new Error();
-    } catch {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "העדכון נכשל");
+      }
+    } catch (err) {
       setParticipants(prev);
-      setError("עדכון הכיתה נכשל");
+      setError((err as Error).message);
+    }
+  }
+
+  async function mergeParticipants(keepId: string, mergeId: string) {
+    setError(null);
+    try {
+      const res = await fetch("/api/participants/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keepId, mergeId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? "המיזוג נכשל");
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -175,6 +207,34 @@ export default function RosterManager({
     }
   }
 
+  // Children sharing a normalised name. Surfaced in the list rather than in a
+  // separate screen: the place you notice a duplicate is while looking at it.
+  const duplicates = useMemo(() => {
+    const byName = new Map<string, Participant[]>();
+    for (const p of participants) {
+      const key = normalizeName(p.name);
+      byName.set(key, [...(byName.get(key) ?? []), p]);
+    }
+    const pairs = new Map<string, Participant>();
+    for (const group of byName.values()) {
+      if (group.length < 2) continue;
+      // Point each one at the next; merging any pair collapses the group.
+      group.forEach((p, i) => pairs.set(p.id, group[(i + 1) % group.length]));
+    }
+    return pairs;
+  }, [participants]);
+
+  const sorted = sortByGrade(participants);
+  const needle = query.trim().toLowerCase();
+  const visible = needle
+    ? sorted.filter(
+        (p) =>
+          p.name.toLowerCase().includes(needle) ||
+          (p.grade ?? "").toLowerCase().includes(needle) ||
+          (p.parentName ?? "").toLowerCase().includes(needle),
+      )
+    : sorted;
+
   return (
     <div className="flex flex-col gap-6">
       {error && (
@@ -188,6 +248,7 @@ export default function RosterManager({
         <h2 className="mb-2 text-lg font-bold text-slate-900">
           כל הילדים ({participants.length})
         </h2>
+
         <form
           onSubmit={addParticipant}
           className="mb-2 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3"
@@ -212,41 +273,45 @@ export default function RosterManager({
           </button>
         </form>
 
+        <div className="mb-2">
+          <RosterImport
+            existingNames={participants.map((p) => p.name)}
+            groups={groups}
+            onImported={() => router.refresh()}
+          />
+        </div>
+
+        {participants.length > 8 && (
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            type="search"
+            placeholder="חיפוש לפי שם, כיתה או שם הורה…"
+            className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
+          />
+        )}
+
         <ul className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          {sortByGrade(participants).map((p, i) => (
-            <li
+          {visible.map((p, i) => (
+            <ParticipantRow
               key={p.id}
-              className={`flex items-center gap-2 border-b border-slate-200 px-3 py-2.5 last:border-b-0 ${
-                i % 2 === 1 ? "bg-slate-50" : "bg-white"
-              }`}
-            >
-              <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
-                {p.name}
-              </span>
-              <input
-                defaultValue={p.grade ?? ""}
-                onBlur={(e) => {
-                  if ((e.target.value.trim() || null) !== (p.grade ?? null)) {
-                    updateGrade(p.id, e.target.value);
-                  }
-                }}
-                placeholder="כיתה"
-                className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm"
-              />
-              {isAdmin && (
-                <button
-                  onClick={() => deleteParticipant(p.id)}
-                  className="rounded-lg px-2 py-1.5 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
-                  aria-label={`מחיקת ${p.name}`}
-                >
-                  מחיקה
-                </button>
-              )}
-            </li>
+              participant={p}
+              striped={i % 2 === 1}
+              isAdmin={isAdmin}
+              duplicateOf={duplicates.get(p.id)}
+              onUpdate={updateParticipant}
+              onDelete={deleteParticipant}
+              onMerge={mergeParticipants}
+            />
           ))}
           {participants.length === 0 && (
             <li className="px-3 py-3 text-sm text-slate-400">
-              אין ילדים עדיין. הוסיפו למעלה.
+              אין ילדים עדיין. הוסיפו למעלה, או ייבאו רשימה שלמה.
+            </li>
+          )}
+          {participants.length > 0 && visible.length === 0 && (
+            <li className="px-3 py-3 text-sm text-slate-400">
+              אין תוצאות ל&quot;{query}&quot;.
             </li>
           )}
         </ul>

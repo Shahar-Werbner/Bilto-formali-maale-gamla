@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { normalizePhone } from "@/lib/participants";
 
 // PATCH /api/participants/:id — update name and/or grade (כיתה).
 // Body: { name?, grade? }  (grade "" clears it)
@@ -32,9 +33,14 @@ export async function PATCH(
     if (typeof body?.grade === "string") {
       data.grade = body.grade.trim() || null;
     }
-    for (const field of ["parentName", "parentPhone", "phone"] as const) {
+    if (typeof body?.parentName === "string") {
+      data.parentName = body.parentName.trim() || null;
+    }
+    // Phones are normalised on every write so a number typed with dashes
+    // matches one that arrived through the importer, and `tel:` works.
+    for (const field of ["parentPhone", "phone"] as const) {
       if (typeof body?.[field] === "string") {
-        data[field] = body[field].trim() || null;
+        data[field] = body[field].trim() ? normalizePhone(body[field]) : null;
       }
     }
 
