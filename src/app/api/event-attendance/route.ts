@@ -49,7 +49,13 @@ export async function POST(request: Request) {
     // Only children who are actually on the event may be marked; anything else
     // would create attendance that no screen or export ever shows.
     const day = await prisma.eventDay.findFirst({
-      where: { id: eventDayId, event: { participants: { some: { id: participantId } } } },
+      where: {
+        id: eventDayId,
+        event: {
+          deletedAt: null,
+          participants: { some: { id: participantId, deletedAt: null } },
+        },
+      },
       select: { id: true },
     });
     if (!day) {

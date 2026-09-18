@@ -9,9 +9,11 @@ type Group = { id: string; name: string; memberIds: string[] };
 export default function RosterManager({
   initialParticipants,
   initialGroups,
+  isAdmin = false,
 }: {
   initialParticipants: Participant[];
   initialGroups: Group[];
+  isAdmin?: boolean;
 }) {
   const [participants, setParticipants] =
     useState<Participant[]>(initialParticipants);
@@ -68,7 +70,12 @@ export default function RosterManager({
   }
 
   async function deleteParticipant(id: string) {
-    if (!confirm("למחוק את הילד/ה מהמערכת (מכל הקבוצות)?")) return;
+    if (
+      !confirm(
+        "למחוק את הילד/ה מהמערכת? הנוכחות שלו/ה נשמרת, ואפשר לשחזר דרך מסך הניהול.",
+      )
+    )
+      return;
     const prevP = participants;
     const prevG = groups;
     setParticipants((list) => list.filter((p) => p.id !== id));
@@ -77,11 +84,14 @@ export default function RosterManager({
     );
     try {
       const res = await fetch(`/api/participants/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-    } catch {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "מחיקת הילד/ה נכשלה");
+      }
+    } catch (err) {
       setParticipants(prevP);
       setGroups(prevG);
-      setError("מחיקת הילד/ה נכשלה");
+      setError((err as Error).message);
     }
   }
 
@@ -223,13 +233,15 @@ export default function RosterManager({
                 placeholder="כיתה"
                 className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm"
               />
-              <button
-                onClick={() => deleteParticipant(p.id)}
-                className="rounded-lg px-2 py-1.5 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
-                aria-label={`מחיקת ${p.name}`}
-              >
-                מחיקה
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => deleteParticipant(p.id)}
+                  className="rounded-lg px-2 py-1.5 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
+                  aria-label={`מחיקת ${p.name}`}
+                >
+                  מחיקה
+                </button>
+              )}
             </li>
           ))}
           {participants.length === 0 && (

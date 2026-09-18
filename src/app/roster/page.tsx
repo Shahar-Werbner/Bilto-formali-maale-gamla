@@ -10,12 +10,22 @@ export default async function RosterPage() {
 
   const [participants, groups] = await Promise.all([
     prisma.participant.findMany({
+      where: { deletedAt: null },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, grade: true },
+      select: {
+        id: true,
+        name: true,
+        grade: true,
+        parentName: true,
+        parentPhone: true,
+        phone: true,
+      },
     }),
     prisma.group.findMany({
       orderBy: { createdAt: "asc" },
-      include: { participants: { select: { id: true } } },
+      include: {
+        participants: { where: { deletedAt: null }, select: { id: true } },
+      },
     }),
   ]);
 
@@ -27,11 +37,16 @@ export default async function RosterPage() {
 
   return (
     <>
-      <AppHeader active="/roster" userName={session?.user?.name} />
+      <AppHeader
+        active="/roster"
+        userName={session?.user?.name}
+        isAdmin={session?.user?.role === "admin"}
+      />
       <main className="mx-auto max-w-3xl px-4 py-4">
         <RosterManager
           initialParticipants={participants}
           initialGroups={plainGroups}
+          isAdmin={session?.user?.role === "admin"}
         />
       </main>
     </>

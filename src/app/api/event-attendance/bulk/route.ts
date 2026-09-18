@@ -26,7 +26,13 @@ export async function POST(request: Request) {
     // The event's participants (via the day → event → participants relation).
     const day = await prisma.eventDay.findUnique({
       where: { id: eventDayId },
-      include: { event: { include: { participants: { select: { id: true } } } } },
+      include: {
+        event: {
+          include: {
+            participants: { where: { deletedAt: null }, select: { id: true } },
+          },
+        },
+      },
     });
     if (!day) {
       return NextResponse.json({ error: "יום לא נמצא" }, { status: 404 });

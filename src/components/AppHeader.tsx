@@ -11,9 +11,11 @@ const NAV = [
 export default function AppHeader({
   active,
   userName,
+  isAdmin = false,
 }: {
   active: string;
   userName?: string | null;
+  isAdmin?: boolean;
 }) {
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -35,7 +37,24 @@ export default function AppHeader({
             </Link>
           ))}
         </nav>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1">
+          {/* Admin is a rare destination; keeping it out of the main nav leaves
+              room for the four daily ones on a phone. The link is convenience,
+              not a guard — /admin and its API check the role themselves. */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              aria-label="ניהול"
+              title="ניהול"
+              className={`rounded-lg px-2 py-2 text-base leading-none transition ${
+                active === "/admin"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              ⚙
+            </Link>
+          )}
           {userName && (
             <span className="hidden text-sm text-slate-500 sm:inline">
               {userName}

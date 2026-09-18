@@ -8,9 +8,7 @@ export default function LoginPage() {
         <h1 className="mb-1 text-center text-2xl font-bold text-slate-900">
           נוכחות מעלה גמלא
         </h1>
-        <p className="mb-6 text-center text-sm text-slate-500">
-          התחברות לצוות
-        </p>
+        <p className="mb-6 text-center text-sm text-slate-500">התחברות לצוות</p>
         <Suspense>
           <LoginForm />
         </Suspense>

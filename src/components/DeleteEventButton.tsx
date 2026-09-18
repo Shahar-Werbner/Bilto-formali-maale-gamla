@@ -14,14 +14,22 @@ export default function DeleteEventButton({
   const [busy, setBusy] = useState(false);
 
   async function remove() {
-    if (!confirm(`למחוק את האירוע "${name}" וכל הנוכחות שלו?`)) return;
+    if (
+      !confirm(
+        `למחוק את האירוע "${name}"? הנוכחות נשמרת, ואפשר לשחזר דרך מסך הניהול.`,
+      )
+    )
+      return;
     setBusy(true);
     try {
       const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "מחיקת האירוע נכשלה");
+      }
       router.refresh();
-    } catch {
-      alert("מחיקת האירוע נכשלה");
+    } catch (err) {
+      alert((err as Error).message);
       setBusy(false);
     }
   }

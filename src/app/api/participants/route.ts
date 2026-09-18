@@ -10,8 +10,16 @@ export async function GET() {
 
   try {
     const participants = await prisma.participant.findMany({
+      where: { deletedAt: null },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, grade: true },
+      select: {
+        id: true,
+        name: true,
+        grade: true,
+        parentName: true,
+        parentPhone: true,
+        phone: true,
+      },
     });
     return NextResponse.json(participants);
   } catch (err) {

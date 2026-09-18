@@ -12,13 +12,18 @@ export default async function EventsPage() {
   const session = await auth();
 
   const events = await prisma.event.findMany({
+    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { days: true, participants: true } } },
   });
 
   return (
     <>
-      <AppHeader active="/events" userName={session?.user?.name} />
+      <AppHeader
+        active="/events"
+        userName={session?.user?.name}
+        isAdmin={session?.user?.role === "admin"}
+      />
       <main className="mx-auto max-w-3xl px-4 py-4">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">אירועים</h1>
@@ -51,7 +56,9 @@ export default async function EventsPage() {
                     {e._count.days} ימים · {e._count.participants} משתתפים
                   </div>
                 </Link>
-                <DeleteEventButton id={e.id} name={e.name} />
+                {session?.user?.role === "admin" && (
+                  <DeleteEventButton id={e.id} name={e.name} />
+                )}
               </li>
             ))}
           </ul>

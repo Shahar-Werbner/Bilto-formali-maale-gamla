@@ -42,10 +42,13 @@ export async function GET(
   if (response) return response;
 
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: params.id },
+    const event = await prisma.event.findFirst({
+      where: { id: params.id, deletedAt: null },
       include: {
-        participants: { orderBy: { createdAt: "asc" } },
+        participants: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: "asc" },
+        },
         days: {
           orderBy: { date: "asc" },
           include: {

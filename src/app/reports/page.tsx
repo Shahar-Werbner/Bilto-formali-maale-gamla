@@ -35,11 +35,15 @@ export default async function ReportsPage() {
 
   const [participants, marks] = await Promise.all([
     prisma.participant.findMany({
+      where: { deletedAt: null },
       select: {
         id: true,
         name: true,
         grade: true,
-        events: { select: { _count: { select: { days: true } } } },
+        events: {
+          where: { deletedAt: null },
+          select: { _count: { select: { days: true } } },
+        },
       },
     }),
     prisma.eventAttendance.groupBy({
@@ -50,8 +54,11 @@ export default async function ReportsPage() {
 
   const counts = new Map<string, Record<Status, number>>();
   for (const m of marks) {
-    const row =
-      counts.get(m.participantId) ?? { present: 0, late: 0, absent: 0 };
+    const row = counts.get(m.participantId) ?? {
+      present: 0,
+      late: 0,
+      absent: 0,
+    };
     if ((STATUSES as readonly string[]).includes(m.status)) {
       row[m.status as Status] = m._count._all;
     }
@@ -73,12 +80,16 @@ export default async function ReportsPage() {
 
   return (
     <>
-      <AppHeader active="/reports" userName={session?.user?.name} />
+      <AppHeader
+        active="/reports"
+        userName={session?.user?.name}
+        isAdmin={session?.user?.role === "admin"}
+      />
       <main className="mx-auto max-w-3xl px-4 py-4">
         <h1 className="mb-1 text-xl font-bold text-slate-900">דוח לפי ילד/ה</h1>
         <p className="mb-4 text-sm text-slate-500">
-          סיכום כל האירועים. אחוז ההגעה מחושב מתוך כל ימי האירועים שהילד/ה רשומ/ה
-          אליהם — כולל ימים שלא סומנו.
+          סיכום כל האירועים. אחוז ההגעה מחושב מתוך כל ימי האירועים שהילד/ה
+          רשומ/ה אליהם — כולל ימים שלא סומנו.
         </p>
 
         {rows.length === 0 ? (

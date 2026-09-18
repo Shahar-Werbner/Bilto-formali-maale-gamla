@@ -11,7 +11,12 @@ export async function GET() {
   try {
     const groups = await prisma.group.findMany({
       orderBy: { createdAt: "asc" },
-      include: { participants: { orderBy: { createdAt: "asc" } } },
+      include: {
+        participants: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
     return NextResponse.json(groups);
   } catch (err) {

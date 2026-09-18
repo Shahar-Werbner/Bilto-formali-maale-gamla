@@ -16,10 +16,21 @@
 - עברית מלאה RTL, mobile-first · פריסה: Vercel
 
 ## פיצ'רים שנבנו
-### התחברות ומשתמשים
+### התחברות, משתמשים והרשאות
 - `/login` — email + סיסמה. `/register` — הרשמה עצמית מוגנת ב**קוד צוות** (env
   `SIGNUP_CODE`); כל נרשם מקבל role `"staff"`. אין הרשמה אם `SIGNUP_CODE` לא מוגדר.
 - כל הדפים מוגנים ב-`middleware.ts`; `/register` ציבורי.
+- **שני תפקידים: `admin` ו-`staff`** (`src/lib/roles.ts`). מנהל/ת בלבד: מחיקת
+  אירוע, מחיקת ילד/ה, שחזור, ושינוי תפקידים. אכיפה ב-`requireAdmin()`
+  (`src/lib/api-auth.ts`), **שקורא את התפקיד מה-DB ולא מה-JWT** — אחרת הורדה
+  מתפקיד לא הייתה נכנסת לתוקף עד ההתחברות הבאה, ימים אחר כך. המחיר: שאילתה
+  אחת נוספת, רק בפעולות האלה.
+- **`/admin`** — ניהול תפקידים + סל מחזור. מוגן פעמיים (הקישור בתפריט הוא נוחות;
+  העמוד וה-API בודקים בעצמם). הגנות: אי אפשר להוריד לעצמך הרשאות ואי אפשר
+  להשאיר את המערכת בלי אף מנהל/ת.
+- **מחיקה רכה** (`deletedAt`) ל-`Event` ול-`Participant`: נעלמים מכל מסך, ייצוא
+  ודוח, אבל הנתונים והנוכחות נשמרים ומנהל/ת משחזר/ת מ-`/admin`. כל נתיב קריאה
+  במערכת מסנן `deletedAt: null`.
 
 ### אירועים (מנגנון הנוכחות)
 - `/events` — רשימה + מחיקה. `/events/new` — יצירה: שם, טווח תאריכים, checkbox נפרד
@@ -99,12 +110,13 @@ src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
 ```
 
 ## מודל הנתונים (Prisma, נוכחי)
-- **User**: id, email(unique), name, role(String,"staff"), passwordHash?, createdAt.
+- **User**: id, email(unique), name, role(String: "admin"|"staff"), passwordHash?, createdAt.
 - **Group**: id, name, participants (m-n `GroupMembers`), activitySlots[], createdAt.
-- **Participant**: id, name, grade?, sortOrder(Int,*legacy — כבר לא נכתב ולא ממיין*), groups (m-n), events
+- **Participant**: id, name, grade?, parentName?, parentPhone?, phone?, deletedAt?,
+  sortOrder(Int,*legacy — כבר לא נכתב ולא ממיין*), groups (m-n), events
   (m-n `EventParticipants`), createdAt.
 - **Event**: id, name, startDate/endDate(`@db.Date`), includeFriday/includeSaturday
-  (Bool), participants (m-n), days[], createdAt.
+  (Bool), deletedAt?, participants (m-n), days[], createdAt.
 - **EventDay**: id, eventId→Event(Cascade), date(`@db.Date`), description?,
   attendance[], activitySlots[], `@@unique([eventId,date])`.
 - **ActivitySlot**: id, eventDayId→EventDay(Cascade), startTime(String "HH:mm"),
@@ -116,8 +128,16 @@ src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
 
 ### מיגרציות (בסדר)
 0_init → add_participant_grade → add_events → add_participant_sort_order →
-groups_many_to_many (שומרת חברות קיימות) → add_activity_slots. כולן תוספתיות
-(פרט ל-m-n שהמירה groupId ל-join table עם שמירת נתונים).
+groups_many_to_many (שומרת חברות קיימות) → add_activity_slots →
+**add_roles_soft_delete_contacts**. כולן תוספתיות (פרט ל-m-n שהמירה groupId
+ל-join table עם שמירת נתונים).
+
+המיגרציה האחרונה מוסיפה `deletedAt` ל-Event ול-Participant, שדות קשר
+(`parentName`/`parentPhone`/`phone`), אינדקסים על
+`EventAttendance.participantId` ו-`EventDay.date`, וכוללת **שלב data migration**
+שמקדם את המשתמש הוותיק ביותר ל-`admin`. השלב הזה קריטי: בלעדיו הפרודקשן — שכל
+המשתמשים בו נוצרו לפני שהיו תפקידים — היה נשאר בלי אף מנהל/ת, ובלי דרך למנות
+אחד. הוא idempotent (לא עושה כלום אם כבר יש admin).
 
 ### החלטות/סטיות מהבריף
 1. סיסמה במקום magic link (בלי SMTP) → נוסף `passwordHash`.
@@ -126,8 +146,8 @@ groups_many_to_many (שומרת חברות קיימות) → add_activity_slots.
 4. **חוב טכני**: `AttendanceRecord` ו-`Participant.sortOrder` — עמודות legacy
    שנשארו ב-DB כדי לא למחוק נתונים. הקוד כבר לא משתמש בהן (route ה-reorder הוסר,
    המיון הוא לפי כיתה). אפשר לנקות במיגרציה עתידית.
-5. **אין הפרדת הרשאות**: כל חשבון `staff` יכול הכול, כולל מחיקת אירוע. מתאים
-   לצוות קטן ומוכר; להרחבה ראו "צעדים הבאים".
+5. **הפרדת הרשאות** נוספה: `admin` מול `staff` (ראו למעלה). מידע רפואי/אלרגיות
+   **לא נאגר** — החלטה מודעת; הסכמה תומכת בהוספה בהמשך בלי שינוי מבני.
 
 ## פריסה — מצב נוכחי
 - **Repo**: `github.com/Shahar-Werbner/Bilto-formali-maale-gamla` (public), `main`.
@@ -146,9 +166,9 @@ SQL Editor; פיתוח/בדיקות מול Postgres מקומי זמני + screen
 את קריאת ה-AI האמיתית בודקים בפרודקשן (עם המפתח).
 
 ## צעדים הבאים אפשריים (לפי סדר תשואה)
-1. **תפקיד admin** — כרגע כל staff יכול למחוק אירוע או ילד. מינימום: `role`
-   נבדק לפני DELETE, ו-`/register` מנפיק staff רגיל בלבד. התשתית (`role`
-   ב-JWT ובסשן) כבר קיימת.
+תוכנית העבודה המלאה וחלוקת העבודה בין סשנים: **`docs/ROADMAP.md`**.
+
+1. ~~**תפקיד admin**~~ — ✅ נבנה.
 2. **הורים** — תפקיד `parent` שרואה רק את הנוכחות של הילד שלו. דורש קישור
    `User ↔ Participant`.
 3. **סידור עבודה ושעות של הצוות** — מודל `Shift` (מדריך, אירוע-יום, שעות),

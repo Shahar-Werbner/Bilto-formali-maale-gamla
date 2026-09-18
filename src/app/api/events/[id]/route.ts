@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireAdmin, requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { formatDateOnly, parseDateOnly } from "@/lib/attendance";
 import { generateEventDates } from "@/lib/events";
@@ -20,8 +20,8 @@ export async function PATCH(
   if (response) return response;
 
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: params.id },
+    const event = await prisma.event.findFirst({
+      where: { id: params.id, deletedAt: null },
       include: {
         days: {
           orderBy: { date: "asc" },
@@ -129,17 +129,21 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/events/:id — removes the event, its days and their attendance
-// (cascade). The event's participants themselves are not deleted.
+// DELETE /api/events/:id — soft delete: the event disappears from every screen
+// but its days and attendance survive, and an admin can restore it from /admin.
+// Admin only — an event holds the attendance history of every child on it.
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireAdmin();
   if (response) return response;
 
   try {
-    await prisma.event.delete({ where: { id: params.id } });
+    await prisma.event.update({
+      where: { id: params.id },
+      data: { deletedAt: new Date() },
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);

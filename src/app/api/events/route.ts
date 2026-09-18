@@ -12,6 +12,7 @@ export async function GET() {
 
   try {
     const events = await prisma.event.findMany({
+      where: { deletedAt: null },
       orderBy: { startDate: "desc" },
       include: {
         _count: { select: { days: true, participants: true } },

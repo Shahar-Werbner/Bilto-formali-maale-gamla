@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireAdmin, requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 
 // PATCH /api/participants/:id — update name and/or grade (כיתה).
@@ -14,7 +14,13 @@ export async function PATCH(
 
   try {
     const body = await request.json().catch(() => null);
-    const data: { name?: string; grade?: string | null } = {};
+    const data: {
+      name?: string;
+      grade?: string | null;
+      parentName?: string | null;
+      parentPhone?: string | null;
+      phone?: string | null;
+    } = {};
 
     if (typeof body?.name === "string") {
       const name = body.name.trim();
@@ -25,6 +31,11 @@ export async function PATCH(
     }
     if (typeof body?.grade === "string") {
       data.grade = body.grade.trim() || null;
+    }
+    for (const field of ["parentName", "parentPhone", "phone"] as const) {
+      if (typeof body?.[field] === "string") {
+        data[field] = body[field].trim() || null;
+      }
     }
 
     const participant = await prisma.participant.update({
@@ -37,17 +48,21 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/participants/:id — removes the participant and their attendance
-// records (cascade defined in the schema).
+// DELETE /api/participants/:id — soft delete. The child disappears from every
+// list, but their attendance history stays intact and an admin can restore
+// them from /admin. Admin only: this row is the child's whole record.
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireAdmin();
   if (response) return response;
 
   try {
-    await prisma.participant.delete({ where: { id: params.id } });
+    await prisma.participant.update({
+      where: { id: params.id },
+      data: { deletedAt: new Date() },
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);
