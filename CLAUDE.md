@@ -5,9 +5,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 An attendance and day-planning system for informal education in Maale Gamla.
-It is **live and used daily by the staff, from phones, in the field** — often
-with poor reception. Every merge to `main` deploys to production. The records
-are about children, so deleting or mixing them up has real consequences.
+
+**Not in use yet — still being built toward a first real session.** That is
+worth knowing before you weigh a change: there is no production data to
+protect, so restructuring the schema is cheap right now and will not be later.
+Prefer getting the shape right over preserving what exists.
+
+The operation it has to fit: children in grades א–ג, every Tuesday (3 hours)
+and Friday (4 hours), plus camps in the holidays. About 50 children on the
+roster, 35–40 attending. Staff are a mix of adult counselors and **teenage
+youth counselors**, usually more of the latter. A session splits into groups
+and runs through meals, outdoor activities and crafts.
+
+Two consequences that should shape decisions: the people using this are often
+teenagers on their own phones, so the interface has to be obvious rather than
+learnable; and the children are 6–9 years old, so anything about who collects
+them at the end of the day is safety-critical, not a convenience.
 
 UI is Hebrew and RTL throughout; code and comments are English.
 
