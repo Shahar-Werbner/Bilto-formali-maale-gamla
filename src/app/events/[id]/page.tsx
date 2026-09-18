@@ -19,7 +19,7 @@ export default async function EventPage({
     prisma.event.findUnique({
       where: { id: params.id },
       include: {
-        participants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+        participants: { orderBy: { createdAt: "asc" } },
         days: {
           orderBy: { date: "asc" },
           include: {
@@ -69,6 +69,10 @@ export default async function EventPage({
   const data = {
     id: event.id,
     name: event.name,
+    startDate: formatDateOnly(event.startDate),
+    endDate: formatDateOnly(event.endDate),
+    includeFriday: event.includeFriday,
+    includeSaturday: event.includeSaturday,
     participants: sortByGrade(
       event.participants.map((p) => ({
         id: p.id,

@@ -10,7 +10,7 @@ export default async function RosterPage() {
 
   const [participants, groups] = await Promise.all([
     prisma.participant.findMany({
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      orderBy: { createdAt: "asc" },
       select: { id: true, name: true, grade: true },
     }),
     prisma.group.findMany({

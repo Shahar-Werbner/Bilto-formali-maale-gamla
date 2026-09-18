@@ -19,7 +19,10 @@ export const STATUS_LABEL: Record<Status, string> = {
 export function parseDateOnly(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const d = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())) return null;
+  // Date rolls an impossible day over (2026-02-29 → 2026-03-01) instead of
+  // failing, which would silently store a different day than was asked for.
+  return d.toISOString().slice(0, 10) === value ? d : null;
 }
 
 export function formatDateOnly(date: Date): string {

@@ -1,25 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   STATUSES,
   STATUS_LABEL,
   sortByGrade,
+  todayDateOnly,
   type Status,
 } from "@/lib/attendance";
 import { formatHebrewDate } from "@/lib/events";
 import DaySchedule, { type Slot } from "./DaySchedule";
+import EventSettings, { type EventSettingsData } from "./EventSettings";
 
 type Participant = { id: string; name: string; grade?: string | null };
 type Day = { id: string; date: string; description: string | null };
 type Group = { id: string; name: string; memberIds: string[] };
-type EventData = {
-  id: string;
-  name: string;
+type EventData = EventSettingsData & {
   participants: Participant[];
   days: Day[];
 };
+
+// A multi-day camp opened on day 1 every time meant scrolling to today before
+// marking anything. Pick the day that matches today, else the nearest one.
+function defaultDayId(days: Day[]): string {
+  if (days.length === 0) return "";
+  const today = todayDateOnly();
+  const exact = days.find((d) => d.date === today);
+  if (exact) return exact.id;
+  return days.reduce((best, d) =>
+    Math.abs(Date.parse(d.date) - Date.parse(today)) <
+    Math.abs(Date.parse(best.date) - Date.parse(today))
+      ? d
+      : best,
+  ).id;
+}
 
 const STATUS_STYLE: Record<Status, { active: string; idle: string }> = {
   present: {
@@ -47,8 +62,8 @@ export default function EventBoard({
   slotsByDay: Record<string, Slot[]>;
   allParticipants: Participant[];
 }) {
-  const [selectedDayId, setSelectedDayId] = useState<string>(
-    event.days[0]?.id ?? "",
+  const [selectedDayId, setSelectedDayId] = useState<string>(() =>
+    defaultDayId(event.days),
   );
   const [participants, setParticipants] = useState<Participant[]>(
     event.participants,
@@ -64,6 +79,19 @@ export default function EventBoard({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Holds the ids that were unmarked when the filter was switched on. Filtering
+  // live would make each row vanish the moment it is marked, shifting the list
+  // under the next tap — on a phone that means marking the wrong child.
+  const [unmarkedFilter, setUnmarkedFilter] = useState<string[] | null>(null);
+
+  // The day strip scrolls, and the day we auto-select is often not the first
+  // one — bring it into view so it is clear which day is open.
+  const dayStripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    dayStripRef.current
+      ?.querySelector('[data-selected="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [selectedDayId]);
 
   const selectedDay = useMemo(
     () => event.days.find((d) => d.id === selectedDayId),
@@ -89,6 +117,7 @@ export default function EventBoard({
   }, []);
 
   useEffect(() => {
+    setUnmarkedFilter(null);
     loadDay(selectedDayId);
   }, [selectedDayId, loadDay]);
 
@@ -125,6 +154,35 @@ export default function EventBoard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventDayId: selectedDayId, status }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setStatuses(prev);
+      setError("השמירה נכשלה, נסו שוב");
+    }
+  }
+
+  // The common end-of-day move: everyone left unmarked was not there.
+  async function markRemaining(status: Status) {
+    const remaining = participants
+      .filter((p) => !statuses[p.id])
+      .map((p) => p.id);
+    if (remaining.length === 0) return;
+    const prev = { ...statuses };
+    setStatuses((s) => {
+      const next = { ...s };
+      for (const id of remaining) next[id] = status;
+      return next;
+    });
+    try {
+      const res = await fetch("/api/event-attendance/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventDayId: selectedDayId,
+          status,
+          participantIds: remaining,
+        }),
       });
       if (!res.ok) throw new Error();
     } catch {
@@ -215,6 +273,20 @@ export default function EventBoard({
     allParticipants.filter((p) => !participants.some((m) => m.id === p.id)),
   );
 
+  const summary = participants.reduce(
+    (acc, p) => {
+      const st = statuses[p.id];
+      if (st) acc[st]++;
+      else acc.unmarked++;
+      return acc;
+    },
+    { present: 0, late: 0, absent: 0, unmarked: 0 },
+  );
+
+  const visible = unmarkedFilter
+    ? participants.filter((p) => unmarkedFilter.includes(p.id))
+    : participants;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
@@ -230,6 +302,8 @@ export default function EventBoard({
       >
         ⬇ ייצוא כל האירוע (Google Sheets / Excel)
       </a>
+
+      <EventSettings event={event} />
 
       {/* Manage participants */}
       <div className="rounded-2xl border border-slate-200 bg-white">
@@ -306,12 +380,16 @@ export default function EventBoard({
       </div>
 
       {/* Day selector */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+      <div
+        ref={dayStripRef}
+        className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1"
+      >
         {event.days.map((d) => {
           const active = d.id === selectedDayId;
           return (
             <button
               key={d.id}
+              data-selected={active}
               onClick={() => setSelectedDayId(d.id)}
               className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-semibold ${
                 active
@@ -372,16 +450,67 @@ export default function EventBoard({
 
           {/* Attendance */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-              <span className="font-bold text-slate-900">
-                נוכחות {loading && <span className="text-slate-400">…</span>}
-              </span>
-              <button
-                onClick={() => markAll("present")}
-                className="rounded-lg bg-present/10 px-3 py-2 text-sm font-semibold text-present hover:bg-present/20"
-              >
-                סמן הכל נוכח
-              </button>
+            <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-slate-900">
+                  נוכחות {loading && <span className="text-slate-400">…</span>}
+                </span>
+                <button
+                  onClick={() => markAll("present")}
+                  className="rounded-lg bg-present/10 px-3 py-2 text-sm font-semibold text-present hover:bg-present/20"
+                >
+                  סמן הכל נוכח
+                </button>
+              </div>
+
+              {participants.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                  <span className="rounded-md bg-present/10 px-2 py-1 text-present">
+                    נוכחים {summary.present}
+                  </span>
+                  <span className="rounded-md bg-late/10 px-2 py-1 text-late">
+                    איחורים {summary.late}
+                  </span>
+                  <span className="rounded-md bg-absent/10 px-2 py-1 text-absent">
+                    נעדרים {summary.absent}
+                  </span>
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-500">
+                    לא סומנו {summary.unmarked}
+                  </span>
+                  {unmarkedFilter && summary.unmarked === 0 && (
+                    <button
+                      onClick={() => setUnmarkedFilter(null)}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50"
+                    >
+                      הצג את כולם
+                    </button>
+                  )}
+                  {summary.unmarked > 0 && (
+                    <>
+                      <button
+                        onClick={() =>
+                          setUnmarkedFilter((cur) =>
+                            cur
+                              ? null
+                              : participants
+                                  .filter((p) => !statuses[p.id])
+                                  .map((p) => p.id),
+                          )
+                        }
+                        className="rounded-md border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50"
+                      >
+                        {unmarkedFilter ? "הצג את כולם" : "הצג רק לא מסומנים"}
+                      </button>
+                      <button
+                        onClick={() => markRemaining("absent")}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50"
+                      >
+                        סמן את הנותרים כנעדרים
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {participants.length === 0 ? (
@@ -390,7 +519,7 @@ export default function EventBoard({
               </p>
             ) : (
               <ul>
-                {participants.map((p, i) => {
+                {visible.map((p, i) => {
                   const current = statuses[p.id];
                   return (
                     <li
