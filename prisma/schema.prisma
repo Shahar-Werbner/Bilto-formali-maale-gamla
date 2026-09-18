@@ -20,7 +20,9 @@ model User {
   id           String             @id @default(cuid())
   email        String             @unique
   name         String
-  role         String             @default("staff") // "staff" | "parent" (future)
+  // "admin" | "staff" (| "parent", planned). Only admins may delete an event or
+  // a child, or change anyone's role.
+  role         String             @default("staff")
   passwordHash String?
   attendance   AttendanceRecord[] @relation("MarkedBy")
   eventMarks   EventAttendance[]  @relation("EventMarkedBy")
@@ -37,15 +39,27 @@ model Group {
 }
 
 model Participant {
-  id         String             @id @default(cuid())
-  name       String
-  grade      String? // כיתה — e.g. "א'", "ה'2"; optional so it can be filled later
-  sortOrder  Int                @default(0) // manual ordering within the master list
+  id        String  @id @default(cuid())
+  name      String
+  grade     String? // כיתה — e.g. "א'", "ה'2"; optional so it can be filled later
+  sortOrder Int     @default(0) // legacy: no longer written; lists sort by grade
+
+  // Emergency contact. Staff need to reach a parent in one tap on a trip.
+  parentName  String?
+  parentPhone String?
+  phone       String? // the child's own phone, for the older ones
+
+  // Soft delete: this row carries a child's whole attendance history, and the
+  // delete button lives on a phone. `deletedAt` set = hidden everywhere.
+  deletedAt DateTime?
+
   groups     Group[]            @relation("GroupMembers")
   attendance AttendanceRecord[]
   events     Event[]            @relation("EventParticipants")
   eventMarks EventAttendance[]
   createdAt  DateTime           @default(now())
+
+  @@index([deletedAt])
 }
 
 model AttendanceRecord {
@@ -75,15 +89,18 @@ model Event {
   endDate         DateTime      @db.Date
   includeFriday   Boolean       @default(false)
   includeSaturday Boolean       @default(false)
+  deletedAt       DateTime? // soft delete — see Participant.deletedAt
   participants    Participant[] @relation("EventParticipants")
   days            EventDay[]
   createdAt       DateTime      @default(now())
+
+  @@index([deletedAt])
 }
 
 model EventDay {
-  id          String            @id @default(cuid())
-  eventId     String
-  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  eventId       String
+  event         Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   date          DateTime          @db.Date
   description   String? // תיאור פעילות — free text, later AI-generated (general note)
   attendance    EventAttendance[]
@@ -92,6 +109,7 @@ model EventDay {
 
   @@unique([eventId, date])
   @@index([eventId])
+  @@index([date])
 }
 
 model EventAttendance {
@@ -108,6 +126,7 @@ model EventAttendance {
 
   @@unique([eventDayId, participantId])
   @@index([eventDayId])
+  @@index([participantId])
 }
 
 // A structured schedule slot within an event-day (סדר יום). Optional groupId

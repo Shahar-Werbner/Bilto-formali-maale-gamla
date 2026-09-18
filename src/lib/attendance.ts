@@ -19,15 +19,24 @@ export const STATUS_LABEL: Record<Status, string> = {
 export function parseDateOnly(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const d = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())) return null;
+  // Date rolls an impossible day over (2026-02-29 → 2026-03-01) instead of
+  // failing, which would silently store a different day than was asked for.
+  return d.toISOString().slice(0, 10) === value ? d : null;
 }
 
 export function formatDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function todayDateOnly(): string {
-  return formatDateOnly(new Date());
+// The team is in Israel; the server runs in UTC. Deriving "today" from the raw
+// UTC date makes the app show yesterday between midnight and 02:00/03:00 local
+// time, so resolve the calendar day in the local timezone instead.
+export const LOCAL_TIMEZONE = "Asia/Jerusalem";
+
+export function todayDateOnly(now: Date = new Date()): string {
+  // "en-CA" formats as YYYY-MM-DD, which is exactly our date-only shape.
+  return now.toLocaleDateString("en-CA", { timeZone: LOCAL_TIMEZONE });
 }
 
 // ── Grade ordering (כיתה) ────────────────────────────────────────────────

@@ -11,7 +11,7 @@ export default async function HistoryPage() {
 
   // Event-days that have any attendance recorded, most recent first.
   const days = await prisma.eventDay.findMany({
-    where: { attendance: { some: {} } },
+    where: { attendance: { some: {} }, event: { deletedAt: null } },
     orderBy: { date: "desc" },
     take: 60,
     include: {
@@ -22,7 +22,11 @@ export default async function HistoryPage() {
 
   return (
     <>
-      <AppHeader active="/history" userName={session?.user?.name} />
+      <AppHeader
+        active="/history"
+        userName={session?.user?.name}
+        isAdmin={session?.user?.role === "admin"}
+      />
       <main className="mx-auto max-w-3xl px-4 py-4">
         <h1 className="mb-4 text-xl font-bold text-slate-900">
           היסטוריית נוכחות

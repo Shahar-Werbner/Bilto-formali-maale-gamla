@@ -16,10 +16,13 @@ export default async function EventPage({
   const session = await auth();
 
   const [event, groups] = await Promise.all([
-    prisma.event.findUnique({
-      where: { id: params.id },
+    prisma.event.findFirst({
+      where: { id: params.id, deletedAt: null },
       include: {
-        participants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+        participants: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: "asc" },
+        },
         days: {
           orderBy: { date: "asc" },
           include: {
@@ -33,7 +36,11 @@ export default async function EventPage({
     }),
     prisma.group.findMany({
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, participants: { select: { id: true } } },
+      select: {
+        id: true,
+        name: true,
+        participants: { where: { deletedAt: null }, select: { id: true } },
+      },
     }),
   ]);
 
@@ -45,6 +52,7 @@ export default async function EventPage({
 
   const allParticipants = sortByGrade(
     await prisma.participant.findMany({
+      where: { deletedAt: null },
       select: { id: true, name: true, grade: true },
     }),
   );
@@ -69,6 +77,10 @@ export default async function EventPage({
   const data = {
     id: event.id,
     name: event.name,
+    startDate: formatDateOnly(event.startDate),
+    endDate: formatDateOnly(event.endDate),
+    includeFriday: event.includeFriday,
+    includeSaturday: event.includeSaturday,
     participants: sortByGrade(
       event.participants.map((p) => ({
         id: p.id,
@@ -85,7 +97,11 @@ export default async function EventPage({
 
   return (
     <>
-      <AppHeader active="/events" userName={session?.user?.name} />
+      <AppHeader
+        active="/events"
+        userName={session?.user?.name}
+        isAdmin={session?.user?.role === "admin"}
+      />
       <main className="mx-auto max-w-3xl px-4 py-4">
         <EventBoard
           event={data}

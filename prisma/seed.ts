@@ -10,12 +10,15 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
+  // The seeded account is the first admin. Without one nobody could delete an
+  // event or promote anyone else, so seeding a plain staff user would lock the
+  // system's admin operations out entirely.
   const user = await prisma.user.upsert({
     where: { email },
-    update: { passwordHash, name },
-    create: { email, name, role: "staff", passwordHash },
+    update: { passwordHash, name, role: "admin" },
+    create: { email, name, role: "admin", passwordHash },
   });
-  console.log(`✓ Staff user ready: ${user.email}`);
+  console.log(`✓ Admin user ready: ${user.email}`);
 
   // Demo group + participants so the UI has something to show on first run.
   // Safe to delete once real data is entered.

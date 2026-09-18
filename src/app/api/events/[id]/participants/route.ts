@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
+import { handleApiError } from "@/lib/api-error";
 
 // POST /api/events/:id/participants — add a child to an existing event.
 // Body: { participantId }
@@ -11,18 +12,22 @@ export async function POST(
   const { response } = await requireSession();
   if (response) return response;
 
-  const body = await request.json().catch(() => null);
-  const participantId =
-    typeof body?.participantId === "string" ? body.participantId : "";
-  if (!participantId) {
-    return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
-  }
+  try {
+    const body = await request.json().catch(() => null);
+    const participantId =
+      typeof body?.participantId === "string" ? body.participantId : "";
+    if (!participantId) {
+      return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
+    }
 
-  await prisma.event.update({
-    where: { id: params.id },
-    data: { participants: { connect: { id: participantId } } },
-  });
-  return NextResponse.json({ ok: true });
+    await prisma.event.update({
+      where: { id: params.id },
+      data: { participants: { connect: { id: participantId } } },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }
 
 // DELETE /api/events/:id/participants?participantId=... — remove a child from
@@ -34,19 +39,26 @@ export async function DELETE(
   const { response } = await requireSession();
   if (response) return response;
 
-  const participantId =
-    new URL(request.url).searchParams.get("participantId") ?? "";
-  if (!participantId) {
-    return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
-  }
+  try {
+    const participantId =
+      new URL(request.url).searchParams.get("participantId") ?? "";
+    if (!participantId) {
+      return NextResponse.json({ error: "חסר מזהה משתתף" }, { status: 400 });
+    }
 
-  // Remove this participant's attendance for the event's days, then disconnect.
-  await prisma.eventAttendance.deleteMany({
-    where: { participantId, eventDay: { eventId: params.id } },
-  });
-  await prisma.event.update({
-    where: { id: params.id },
-    data: { participants: { disconnect: { id: participantId } } },
-  });
-  return NextResponse.json({ ok: true });
+    // Both steps in one transaction: dropping the link but leaving orphan
+    // attendance rows would skew the per-child report.
+    await prisma.$transaction([
+      prisma.eventAttendance.deleteMany({
+        where: { participantId, eventDay: { eventId: params.id } },
+      }),
+      prisma.event.update({
+        where: { id: params.id },
+        data: { participants: { disconnect: { id: participantId } } },
+      }),
+    ]);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

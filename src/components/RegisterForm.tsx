@@ -75,11 +75,12 @@ export default function RegisterForm() {
       </label>
 
       <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-        סיסמה (לפחות 6 תווים)
+        סיסמה (לפחות 8 תווים)
         <input
           type="password"
           autoComplete="new-password"
           required
+          minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-3 text-base focus:border-slate-500 focus:outline-none"
