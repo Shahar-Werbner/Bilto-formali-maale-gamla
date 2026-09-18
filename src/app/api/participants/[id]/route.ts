@@ -44,11 +44,19 @@ export async function PATCH(
       }
     }
 
-    const participant = await prisma.participant.update({
-      where: { id: params.id },
+    // A child in the recycle bin must not be editable: otherwise what an admin
+    // restores is not what they deleted, and nothing on any screen would have
+    // shown the change happening.
+    const participant = await prisma.participant.updateMany({
+      where: { id: params.id, deletedAt: null },
       data,
     });
-    return NextResponse.json(participant);
+    if (participant.count === 0) {
+      return NextResponse.json({ error: "ילד/ה לא נמצא/ה" }, { status: 404 });
+    }
+    return NextResponse.json(
+      await prisma.participant.findUnique({ where: { id: params.id } }),
+    );
   } catch (err) {
     return handleApiError(err);
   }

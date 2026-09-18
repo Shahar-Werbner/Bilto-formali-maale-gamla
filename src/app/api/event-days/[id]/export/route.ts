@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { liveEventDay } from "@/lib/event-scope";
 import { safeSheetName, xlsxHeaders } from "@/lib/xlsx";
 import {
   formatDateOnly,
@@ -41,8 +42,8 @@ export async function GET(
   if (response) return response;
 
   try {
-    const day = await prisma.eventDay.findUnique({
-      where: { id: params.id },
+    const day = await prisma.eventDay.findFirst({
+      where: liveEventDay(params.id),
       include: {
         event: { include: { participants: { where: { deletedAt: null } } } },
         attendance: { select: { participantId: true, status: true } },

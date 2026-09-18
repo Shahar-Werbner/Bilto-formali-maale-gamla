@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { liveEventDay } from "@/lib/event-scope";
 import { parseSchedule } from "@/lib/ai-schedule";
 import { formatDateOnly } from "@/lib/attendance";
 import { formatHebrewDate } from "@/lib/events";
@@ -47,8 +48,8 @@ export async function POST(
       );
     }
 
-    const day = await prisma.eventDay.findUnique({
-      where: { id: params.id },
+    const day = await prisma.eventDay.findFirst({
+      where: liveEventDay(params.id),
       select: { id: true, date: true },
     });
     if (!day) {
