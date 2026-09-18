@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { normalizePhone } from "@/lib/participants";
 
 // GET /api/participants — the master list of all children.
 export async function GET() {
@@ -28,7 +29,8 @@ export async function GET() {
 }
 
 // POST /api/participants — add a child to the master list.
-// Body: { name, grade? }  Optionally { groupId } to also add to a group.
+// Body: { name, grade?, parentName?, parentPhone?, phone? }
+// Optionally { groupId } to also add to a group.
 export async function POST(request: Request) {
   const { response } = await requireSession();
   if (response) return response;
@@ -37,10 +39,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     const groupId = typeof body?.groupId === "string" ? body.groupId : "";
-    const grade =
-      typeof body?.grade === "string" && body.grade.trim()
-        ? body.grade.trim()
-        : null;
+    const str = (v: unknown) =>
+      typeof v === "string" && v.trim() ? v.trim() : null;
 
     if (!name) {
       return NextResponse.json({ error: "שם משתתף חסר" }, { status: 400 });
@@ -49,7 +49,12 @@ export async function POST(request: Request) {
     const participant = await prisma.participant.create({
       data: {
         name,
-        grade,
+        grade: str(body?.grade),
+        parentName: str(body?.parentName),
+        parentPhone: str(body?.parentPhone)
+          ? normalizePhone(String(body.parentPhone))
+          : null,
+        phone: str(body?.phone) ? normalizePhone(String(body.phone)) : null,
         ...(groupId ? { groups: { connect: { id: groupId } } } : {}),
       },
     });
