@@ -1,15 +1,22 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability, sessionCapabilities } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { normalizePhone } from "@/lib/participants";
 
 // GET /api/participants — the master list of all children.
 export async function GET() {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("roster:view");
   if (response) return response;
 
   try {
+    // Seeing the list and seeing the phone numbers are separate permissions.
+    // A youth counselor marks attendance from this list; they have no reason to
+    // hold every parent's number on their own phone, so the fields are dropped
+    // from the query rather than hidden in the UI — data that is never sent
+    // cannot leak through a devtools tab.
+    const contacts = (await sessionCapabilities()).includes("roster:contacts");
+
     const participants = await prisma.participant.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "asc" },
@@ -17,9 +24,9 @@ export async function GET() {
         id: true,
         name: true,
         grade: true,
-        parentName: true,
-        parentPhone: true,
-        phone: true,
+        parentName: contacts,
+        parentPhone: contacts,
+        phone: contacts,
       },
     });
     return NextResponse.json(participants);
@@ -32,7 +39,7 @@ export async function GET() {
 // Body: { name, grade?, parentName?, parentPhone?, phone? }
 // Optionally { groupId } to also add to a group.
 export async function POST(request: Request) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("roster:edit");
   if (response) return response;
 
   try {

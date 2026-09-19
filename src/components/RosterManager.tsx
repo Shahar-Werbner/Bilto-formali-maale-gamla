@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sortByGrade } from "@/lib/attendance";
+import type { Capability } from "@/lib/roles";
 import { normalizeName } from "@/lib/participants";
 import RosterImport from "./RosterImport";
 import ParticipantRow from "./ParticipantRow";
@@ -21,11 +22,18 @@ export default function RosterManager({
   initialParticipants,
   initialGroups,
   isAdmin = false,
+  capabilities = [],
 }: {
   initialParticipants: Participant[];
   initialGroups: Group[];
   isAdmin?: boolean;
+  capabilities?: readonly Capability[];
 }) {
+  // The server refuses these anyway; hiding them keeps the screen from offering
+  // a button that comes back 403. A youth counselor sees the list to mark it,
+  // not to reshape it.
+  const canEditRoster = capabilities.includes("roster:edit");
+  const canEditGroups = capabilities.includes("group:edit");
   const router = useRouter();
   const [participants, setParticipants] =
     useState<Participant[]>(initialParticipants);
@@ -249,6 +257,7 @@ export default function RosterManager({
           כל הילדים ({participants.length})
         </h2>
 
+        {canEditRoster && (
         <form
           onSubmit={addParticipant}
           className="mb-2 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3"
@@ -272,7 +281,9 @@ export default function RosterManager({
             הוספה
           </button>
         </form>
+        )}
 
+        {canEditRoster && (
         <div className="mb-2">
           <RosterImport
             existingNames={participants.map((p) => p.name)}
@@ -280,6 +291,7 @@ export default function RosterManager({
             onImported={() => router.refresh()}
           />
         </div>
+        )}
 
         {participants.length > 8 && (
           <input
@@ -298,6 +310,8 @@ export default function RosterManager({
               participant={p}
               striped={i % 2 === 1}
               isAdmin={isAdmin}
+              canEdit={canEditRoster}
+              canSeeContacts={capabilities.includes("roster:contacts")}
               duplicateOf={duplicates.get(p.id)}
               onUpdate={updateParticipant}
               onDelete={deleteParticipant}
@@ -320,6 +334,7 @@ export default function RosterManager({
       {/* Groups */}
       <section>
         <h2 className="mb-2 text-lg font-bold text-slate-900">קבוצות</h2>
+        {canEditGroups && (
         <form
           onSubmit={addGroup}
           className="mb-2 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3"
@@ -337,6 +352,7 @@ export default function RosterManager({
             הוספה
           </button>
         </form>
+        )}
 
         <div className="flex flex-col gap-3">
           {groups.map((group) => {
@@ -360,12 +376,14 @@ export default function RosterManager({
                       ({members.length})
                     </span>
                   </h3>
-                  <button
-                    onClick={() => deleteGroup(group.id)}
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-absent hover:bg-red-50"
-                  >
-                    מחיקת קבוצה
-                  </button>
+                  {canEditGroups && (
+                    <button
+                      onClick={() => deleteGroup(group.id)}
+                      className="rounded-lg px-3 py-2 text-sm font-medium text-absent hover:bg-red-50"
+                    >
+                      מחיקת קבוצה
+                    </button>
+                  )}
                 </div>
 
                 <ul>
@@ -382,12 +400,14 @@ export default function RosterManager({
                           </span>
                         )}
                       </span>
-                      <button
-                        onClick={() => removeMember(group.id, p.id)}
-                        className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
-                      >
-                        הסרה
-                      </button>
+                      {canEditGroups && (
+                        <button
+                          onClick={() => removeMember(group.id, p.id)}
+                          className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
+                        >
+                          הסרה
+                        </button>
+                      )}
                     </li>
                   ))}
                   {members.length === 0 && (
@@ -397,7 +417,7 @@ export default function RosterManager({
                   )}
                 </ul>
 
-                {nonMembers.length > 0 && (
+                {canEditGroups && nonMembers.length > 0 && (
                   <div className="border-t border-slate-100 p-3">
                     <select
                       value=""

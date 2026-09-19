@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 
 // GET /api/groups — all groups with their participants.
 export async function GET() {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("group:view");
   if (response) return response;
 
   try {
@@ -26,7 +26,7 @@ export async function GET() {
 
 // POST /api/groups — create a group. Body: { name }
 export async function POST(request: Request) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("group:edit");
   if (response) return response;
 
   try {
