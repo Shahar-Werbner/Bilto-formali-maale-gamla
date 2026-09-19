@@ -17,25 +17,31 @@ datasource db {
 }
 
 model User {
-  id           String             @id @default(cuid())
-  email        String             @unique
-  name         String
+  id             String             @id @default(cuid())
+  email          String             @unique
+  name           String
   // "admin" | "staff" (| "parent", planned). Only admins may delete an event or
   // a child, or change anyone's role.
-  role         String             @default("staff")
-  passwordHash String?
-  attendance   AttendanceRecord[] @relation("MarkedBy")
-  eventMarks   EventAttendance[]  @relation("EventMarkedBy")
-  createdAt    DateTime           @default(now())
+  role           String             @default("staff")
+  passwordHash   String?
+  attendance     AttendanceRecord[] @relation("MarkedBy")
+  eventMarks     EventAttendance[]  @relation("EventMarkedBy")
+  dismissalMarks Dismissal[]        @relation("DismissalMarkedBy")
+  shifts         Shift[]
+  createdAt      DateTime           @default(now())
 }
 
 model Group {
-  id            String         @id @default(cuid())
-  name          String
+  id             String               @id @default(cuid())
+  name           String
   // A participant can belong to many groups; a group has many participants.
-  participants  Participant[]  @relation("GroupMembers")
-  activitySlots ActivitySlot[]
-  createdAt     DateTime       @default(now())
+  participants   Participant[]        @relation("GroupMembers")
+  activitySlots  ActivitySlot[]
+  // Per-day membership (wave 3 item 3). The m-n `participants` above stays for
+  // now as the reusable/default membership; whether it is dropped in favour of
+  // this is item 3's decision, not the schema session's.
+  dayAssignments DayGroupAssignment[]
+  createdAt      DateTime             @default(now())
 }
 
 model Participant {
@@ -53,11 +59,20 @@ model Participant {
   // delete button lives on a phone. `deletedAt` set = hidden everywhere.
   deletedAt DateTime?
 
-  groups     Group[]            @relation("GroupMembers")
+  // Who may take this child home, standing instruction. "escort" means an adult
+  // has to collect them; "alone" means they may leave by themselves. The column
+  // defaults to "escort" on purpose — a child with nothing recorded waits for an
+  // adult. The unsafe direction must never be the one you get by forgetting.
+  defaultDismissal String @default("escort")
+
+  groups     Group[]               @relation("GroupMembers")
   attendance AttendanceRecord[]
-  events     Event[]            @relation("EventParticipants")
+  events     Event[]               @relation("EventParticipants")
   eventMarks EventAttendance[]
-  createdAt  DateTime           @default(now())
+  pickupAuth PickupAuthorization[]
+  dismissals Dismissal[]
+  dayGroups  DayGroupAssignment[]
+  createdAt  DateTime              @default(now())
 
   @@index([deletedAt])
 }
@@ -141,9 +156,12 @@ model EventDay {
   startTime String? // "HH:mm"
   endTime   String? // "HH:mm"
 
-  attendance    EventAttendance[]
-  activitySlots ActivitySlot[]
-  createdAt     DateTime          @default(now())
+  attendance       EventAttendance[]
+  activitySlots    ActivitySlot[]
+  dismissals       Dismissal[]
+  groupAssignments DayGroupAssignment[]
+  shifts           Shift[]
+  createdAt        DateTime             @default(now())
 
   @@unique([eventId, date])
   @@index([eventId])
@@ -185,4 +203,89 @@ model ActivitySlot {
 
   @@index([eventDayId])
   @@index([groupId])
+}
+
+// ── Dismissal (wave 3, item 2) ──────────────────────────────────────────────
+// The children are 6–9. Who collects them is safety-critical, not a
+// convenience, so it is modelled in two halves: who is *allowed* to (standing),
+// and what actually *happened* at the end of a session (per day).
+
+// A person cleared to collect this child. Standing, not per-day.
+model PickupAuthorization {
+  id            String      @id @default(cuid())
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String?
+  relation      String? // "אמא", "סבתא", "שכנה"
+  createdAt     DateTime    @default(now())
+
+  @@index([participantId])
+}
+
+// What happened at the end of one session for one child: left alone, or
+// collected, and by whom. This is the counterpart to attendance — signing out,
+// not only in. One row per (day, child), like EventAttendance.
+model Dismissal {
+  id             String      @id @default(cuid())
+  eventDayId     String
+  eventDay       EventDay    @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  method         String // "alone" | "escort"
+  pickedUpByName String? // who actually collected them
+  at             DateTime?
+  note           String? // a one-off change: "today grandma"
+  markedByUserId String?
+  markedBy       User?       @relation("DismissalMarkedBy", fields: [markedByUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([eventDayId, participantId])
+  @@index([eventDayId])
+  @@index([participantId])
+}
+
+// ── Per-session groups (wave 3, item 3) ─────────────────────────────────────
+// Groups are re-formed each session, so membership belongs to the day rather
+// than to the child. `Group` stays as the reusable name the slots point at.
+model DayGroupAssignment {
+  id            String      @id @default(cuid())
+  eventDayId    String
+  eventDay      EventDay    @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  groupId       String
+  // Deleting a group clears that day's assignments to it rather than blocking
+  // the delete: a group is a reusable name, and today's roster should not make
+  // an old name undeletable forever. The children themselves are untouched,
+  // which is how deleting a group already behaves.
+  group         Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([eventDayId, participantId]) // one group per child per day
+  @@index([eventDayId])
+  @@index([groupId])
+}
+
+// ── Staff roster (wave 3, item 4) ───────────────────────────────────────────
+// Who is working a given session. Hours default to the session's own hours
+// (EventDay.startTime/endTime, wave 3 item 1) and can be overridden per shift,
+// which is what the monthly hours report (item 6) is derived from.
+model Shift {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventDayId String
+  eventDay   EventDay @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  startTime  String? // "HH:mm" — null means "the session's hours"
+  endTime    String?
+  role       String? // "אחראי", "מדריך קבוצה"
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, eventDayId])
+  @@index([eventDayId])
+  @@index([userId])
 }
