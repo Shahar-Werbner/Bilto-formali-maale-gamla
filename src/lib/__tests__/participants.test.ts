@@ -4,6 +4,7 @@ import {
   normalizePhone,
   parseRoster,
   partitionByExisting,
+  splitByExistingKeys,
 } from "../participants";
 
 describe("parseRoster", () => {
@@ -113,5 +114,65 @@ describe("partitionByExisting", () => {
     const names = first.fresh.map((r) => r.name);
     const second = partitionByExisting(rows, names);
     expect(second.fresh).toEqual([]);
+  });
+});
+
+// Merging one child's record into another has to carry the rows that hang off
+// it. Three of those tables are unique per (day, child), so a row for a day the
+// surviving record already covers cannot be reassigned — it would fail the
+// constraint and take the whole merge down with it.
+describe("splitByExistingKeys", () => {
+  const key = (r: { day: string }) => r.day;
+
+  it("moves the rows the surviving record has no row for", () => {
+    const { move, drop } = splitByExistingKeys(
+      [{ day: "mon" }, { day: "tue" }],
+      key,
+      ["wed"],
+    );
+    expect(move.map((r) => r.day)).toEqual(["mon", "tue"]);
+    expect(drop).toEqual([]);
+  });
+
+  it("drops the duplicate where both records cover the same day", () => {
+    const { move, drop } = splitByExistingKeys(
+      [{ day: "mon" }, { day: "tue" }],
+      key,
+      ["mon"],
+    );
+    // The survivor's row for Monday stands — it is the one the team has been
+    // looking at — so the duplicate is dropped rather than overwriting it.
+    expect(move.map((r) => r.day)).toEqual(["tue"]);
+    expect(drop.map((r) => r.day)).toEqual(["mon"]);
+  });
+
+  it("catches a repeat within the moving rows themselves", () => {
+    const { move, drop } = splitByExistingKeys(
+      [{ day: "mon" }, { day: "mon" }],
+      key,
+      [],
+    );
+    expect(move).toHaveLength(1);
+    expect(drop).toHaveLength(1);
+  });
+
+  it("moves everything when the surviving record holds nothing", () => {
+    const { move, drop } = splitByExistingKeys([{ day: "mon" }], key, []);
+    expect(move).toHaveLength(1);
+    expect(drop).toEqual([]);
+  });
+
+  // Pickup authorizations have no unique constraint, so the key is the person
+  // rather than the day: the same grandmother on both records should not end up
+  // listed twice, but a different person must come across.
+  it("keys on the person when merging who may collect a child", () => {
+    const authKey = (a: { name: string }) => normalizeName(a.name);
+    const { move, drop } = splitByExistingKeys(
+      [{ name: "סבתא  רחל" }, { name: "שכנה" }],
+      authKey,
+      [normalizeName("סבתא רחל")],
+    );
+    expect(move.map((a) => a.name)).toEqual(["שכנה"]);
+    expect(drop.map((a) => a.name)).toEqual(["סבתא  רחל"]);
   });
 });
