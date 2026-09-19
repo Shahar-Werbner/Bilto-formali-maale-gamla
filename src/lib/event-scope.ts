@@ -22,9 +22,16 @@ export function liveEventDay(id: string) {
   return { id, event: LIVE_EVENT };
 }
 
+// Any row that hangs off an EventDay — an activity slot, a dismissal, a group
+// assignment, a shift — is reachable by its own id alone, which says nothing
+// about the event above it. They all scope the same way.
+export function liveDayRow(id: string) {
+  return { id, eventDay: { event: LIVE_EVENT } };
+}
+
 /** An ActivitySlot, only if its day's event is not soft-deleted. */
 export function liveActivitySlot(id: string) {
-  return { id, eventDay: { event: LIVE_EVENT } };
+  return liveDayRow(id);
 }
 
 /** The ActivitySlots of one day, only if that day's event is not soft-deleted. */
