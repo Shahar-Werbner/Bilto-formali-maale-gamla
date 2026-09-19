@@ -120,6 +120,13 @@ model Event {
   // recurring only — one row per weekday the event runs on.
   weekdays EventWeekday[]
 
+  // Staffing alert (item 4): how many children one counselor may cover before a
+  // session is flagged as short-staffed. Named for what it measures rather than
+  // "threshold", which does not say which direction is the bad one. null = fall
+  // back to the app-wide default; a camp and a Tuesday afternoon can want
+  // different numbers, so it lives per event.
+  maxChildrenPerStaff Int?
+
   deletedAt    DateTime? // soft delete — see Participant.deletedAt
   participants Participant[] @relation("EventParticipants")
   days         EventDay[]

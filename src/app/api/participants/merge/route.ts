@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import {
+  normalizeName,
+  normalizePhone,
+  splitByExistingKeys,
+} from "@/lib/participants";
 
 // POST /api/participants/merge — fold one child's record into another.
 // Body: { keepId, mergeId }
@@ -44,6 +49,13 @@ export async function POST(request: Request) {
           events: { select: { id: true } },
           eventMarks: { select: { id: true, eventDayId: true } },
           attendance: { select: { id: true, date: true } },
+          // Who may collect them, how they went home, and which group they were
+          // in each session. Losing these on a merge is not a bookkeeping slip:
+          // the surviving record would show an empty list of people allowed to
+          // take the child home, which looks exactly like "nobody authorised".
+          pickupAuth: { select: { id: true, name: true, phone: true } },
+          dismissals: { select: { id: true, eventDayId: true } },
+          dayGroups: { select: { id: true, eventDayId: true } },
         },
       }),
     ]);
@@ -73,6 +85,50 @@ export async function POST(request: Request) {
       (r) => !keepDates.has(r.date.getTime()),
     );
 
+    // Dismissals and day-group assignments are unique per (day, child), same as
+    // attendance, so they follow the same rule: the survivor's row stands.
+    const [keepDismissals, keepDayGroups, keepAuthorizations] = await Promise.all([
+      prisma.dismissal.findMany({
+        where: { participantId: keepId },
+        select: { eventDayId: true },
+      }),
+      prisma.dayGroupAssignment.findMany({
+        where: { participantId: keepId },
+        select: { eventDayId: true },
+      }),
+      prisma.pickupAuthorization.findMany({
+        where: { participantId: keepId },
+        select: { name: true, phone: true },
+      }),
+    ]);
+
+    const dismissals = splitByExistingKeys(
+      merge.dismissals,
+      (d) => d.eventDayId,
+      keepDismissals.map((d) => d.eventDayId),
+    );
+    const dayGroups = splitByExistingKeys(
+      merge.dayGroups,
+      (a) => a.eventDayId,
+      keepDayGroups.map((a) => a.eventDayId),
+    );
+
+    // Pickup authorizations carry no unique constraint — the duplicate here is
+    // the same person entered on both records, and moving them across would
+    // leave the survivor listing "אמא" twice. Matched on the normalised name
+    // plus phone, the same way the roster import decides two spellings are one
+    // child. Anything that does not match is a different person and must move:
+    // dropping it would quietly narrow who is allowed to collect the child.
+    const authKey = (a: { name: string; phone: string | null }) =>
+      `${normalizeName(a.name)}|${a.phone ? normalizePhone(a.phone) ?? "" : ""}`;
+    const authorizations = splitByExistingKeys(
+      merge.pickupAuth,
+      // Wrapped rather than passed directly so the row type is inferred from
+      // the rows (which carry `id`) and not from authKey's parameter.
+      (a) => authKey(a),
+      keepAuthorizations.map(authKey),
+    );
+
     // Fill in anything the surviving record is missing.
     const fill: Record<string, string> = {};
     for (const field of ["grade", "parentName", "parentPhone", "phone"] as const) {
@@ -90,6 +146,27 @@ export async function POST(request: Request) {
       prisma.attendanceRecord.updateMany({
         where: { id: { in: legacyToMove.map((r) => r.id) } },
         data: { participantId: keepId },
+      }),
+      prisma.dismissal.updateMany({
+        where: { id: { in: dismissals.move.map((d) => d.id) } },
+        data: { participantId: keepId },
+      }),
+      prisma.dismissal.deleteMany({
+        where: { id: { in: dismissals.drop.map((d) => d.id) } },
+      }),
+      prisma.dayGroupAssignment.updateMany({
+        where: { id: { in: dayGroups.move.map((a) => a.id) } },
+        data: { participantId: keepId },
+      }),
+      prisma.dayGroupAssignment.deleteMany({
+        where: { id: { in: dayGroups.drop.map((a) => a.id) } },
+      }),
+      prisma.pickupAuthorization.updateMany({
+        where: { id: { in: authorizations.move.map((a) => a.id) } },
+        data: { participantId: keepId },
+      }),
+      prisma.pickupAuthorization.deleteMany({
+        where: { id: { in: authorizations.drop.map((a) => a.id) } },
       }),
       prisma.participant.update({
         where: { id: keepId },
@@ -109,6 +186,9 @@ export async function POST(request: Request) {
       ok: true,
       movedMarks: marksToMove.length,
       droppedMarks: marksToDrop.length,
+      // Worth surfacing separately: an admin merging two records should be able
+      // to see that the people allowed to collect the child came across.
+      movedAuthorizations: authorizations.move.length,
     });
   } catch (err) {
     return handleApiError(err);

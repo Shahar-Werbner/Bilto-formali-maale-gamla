@@ -111,6 +111,36 @@ export function parseRoster(text: string): ParseResult {
   return { rows, skipped };
 }
 
+// Merging one child's record into another moves their rows across. Several of
+// those tables are unique per (day, child) — attendance, dismissal, group
+// assignment — so a row cannot simply be reassigned if the surviving record
+// already has one for that day: the write would fail on the constraint.
+//
+// The rule is the same one merge already applies to attendance: where both
+// records hold a row for the same day, the survivor's stands, because it is the
+// one the team has been looking at. The duplicate's is dropped rather than
+// silently overwriting it.
+export function splitByExistingKeys<T>(
+  rows: T[],
+  keyOf: (row: T) => string,
+  existingKeys: Iterable<string>,
+): { move: T[]; drop: T[] } {
+  const taken = new Set(existingKeys);
+  const move: T[] = [];
+  const drop: T[] = [];
+
+  for (const row of rows) {
+    if (taken.has(keyOf(row))) {
+      drop.push(row);
+    } else {
+      // A repeat within `rows` itself would collide just as hard on the way in.
+      taken.add(keyOf(row));
+      move.push(row);
+    }
+  }
+  return { move, drop };
+}
+
 // Splits parsed rows against the names already in the system. `duplicate`
 // covers both children who already exist and repeats within the paste itself —
 // importing the same list twice should add nobody.
