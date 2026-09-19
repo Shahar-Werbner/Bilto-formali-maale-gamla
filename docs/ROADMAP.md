@@ -155,7 +155,10 @@ generateEventDays({ startDate, endDate, kind, weekdays?, includeFriday?,
 ### 🔨 בעבודה עכשיו — מחיקה רכה לקבוצות (ענף `claude/prisma-schema-items-2-4-yl8b9g`)
 
 **`prisma/` תפוס.** אף סשן אחר לא מוסיף מיגרציה עד שזה נמזג.
-(תפקיד `youth` **לא** דורש מיגרציה — `role` הוא `String`.)
+
+**מחיקת קבוצה יושבת על היכולת `group:delete`** שנוספה לטבלה של פריט 4 —
+מנהל/ת בלבד, בעוד `group:edit` (שינוי שם) נשאר פתוח לצוות בוגר. הפירוט והנימוק
+ב-`docs/changes/group-soft-delete.md`.
 
 **ההחלטה של בעל הפרויקט (19.09): שומרים את שני סוגי הקבוצות.**
 קבוצות קבועות (`Participant ↔ Group`) **וגם** קבוצות למפגש
