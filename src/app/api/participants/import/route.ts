@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import {
   normalizePhone,
@@ -16,7 +16,7 @@ const MAX_ROWS = 500;
 // Children whose name already exists are skipped rather than duplicated, so
 // importing the same list twice is safe.
 export async function POST(request: Request) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("roster:edit");
   if (response) return response;
 
   try {

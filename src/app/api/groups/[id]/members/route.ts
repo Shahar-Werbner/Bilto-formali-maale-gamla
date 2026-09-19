@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 
 // POST /api/groups/:id/members — add a participant to the group.
@@ -9,7 +9,7 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("group:edit");
   if (response) return response;
 
   try {
@@ -36,7 +36,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("group:edit");
   if (response) return response;
 
   try {

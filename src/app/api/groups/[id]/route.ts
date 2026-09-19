@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 
 // PATCH /api/groups/:id — rename. Body: { name }
@@ -8,7 +8,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("group:edit");
   if (response) return response;
 
   try {
@@ -34,7 +34,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("group:edit");
   if (response) return response;
 
   try {

@@ -138,10 +138,15 @@ export default function DaySchedule({
   eventDayId,
   initialSlots,
   groups,
+  canEdit = true,
 }: {
   eventDayId: string;
   initialSlots: Slot[];
   groups: Group[];
+  /** schedule:edit — without it the day's plan is read-only. A youth counselor
+   *  sees the schedule and works from it; changing it needs an adult, and the
+   *  approval loop that would let them propose changes has no column yet. */
+  canEdit?: boolean;
 }) {
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -324,7 +329,7 @@ export default function DaySchedule({
 
       <ul className="flex flex-col gap-2">
         {slots.map((slot, i) =>
-          editingId === slot.id ? (
+          canEdit && editingId === slot.id ? (
             <li key={slot.id}>
               <SlotForm
                 groups={groups}
@@ -346,6 +351,7 @@ export default function DaySchedule({
               key={slot.id}
               className="flex items-start gap-2 rounded-xl border border-slate-200 p-3"
             >
+              {canEdit && (
               <div className="flex flex-col pt-0.5">
                 <button
                   onClick={() => move(i, -1)}
@@ -364,6 +370,7 @@ export default function DaySchedule({
                   ▼
                 </button>
               </div>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-semibold text-slate-700" dir="ltr">
@@ -385,6 +392,7 @@ export default function DaySchedule({
                   </div>
                 )}
               </div>
+              {canEdit && (
               <div className="flex shrink-0 gap-1">
                 <button
                   onClick={() => setEditingId(slot.id)}
@@ -399,13 +407,14 @@ export default function DaySchedule({
                   מחיקה
                 </button>
               </div>
+              )}
             </li>
           ),
         )}
       </ul>
 
       <div className="mt-3">
-        {adding ? (
+        {!canEdit ? null : adding ? (
           <SlotForm
             groups={groups}
             initial={emptyDraft}
@@ -473,14 +482,14 @@ export default function DaySchedule({
               ה-AI ימיר את התיאור לפעילויות מסודרות. אפשר לערוך אחר כך.
             </p>
           </form>
-        ) : (
+        ) : canEdit ? (
           <button
             onClick={() => setAiOpen(true)}
             className="w-full rounded-lg border border-dashed border-indigo-300 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
           >
             ✨ סידור אוטומטי עם AI
           </button>
-        )}
+        ) : null}
       </div>
     </section>
   );

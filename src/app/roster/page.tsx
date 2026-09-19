@@ -2,11 +2,15 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import AppHeader from "@/components/AppHeader";
 import RosterManager from "@/components/RosterManager";
+import { sessionCapabilities } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function RosterPage() {
   const session = await auth();
+
+  const capabilities = await sessionCapabilities();
+  const canSeeContacts = capabilities.includes("roster:contacts");
 
   const [participants, groups] = await Promise.all([
     prisma.participant.findMany({
@@ -16,9 +20,11 @@ export default async function RosterPage() {
         id: true,
         name: true,
         grade: true,
-        parentName: true,
-        parentPhone: true,
-        phone: true,
+        // Not fetched at all for a role without roster:contacts — see the note
+        // in /api/participants.
+        parentName: canSeeContacts,
+        parentPhone: canSeeContacts,
+        phone: canSeeContacts,
       },
     }),
     prisma.group.findMany({
@@ -47,6 +53,7 @@ export default async function RosterPage() {
           initialParticipants={participants}
           initialGroups={plainGroups}
           isAdmin={session?.user?.role === "admin"}
+          capabilities={capabilities}
         />
       </main>
     </>

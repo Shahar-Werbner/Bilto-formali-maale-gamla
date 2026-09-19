@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { liveEventDay } from "@/lib/event-scope";
 import { parseSchedule } from "@/lib/ai-schedule";
@@ -22,7 +22,7 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("schedule:edit");
   if (response) return response;
 
   if (!process.env.ANTHROPIC_API_KEY) {

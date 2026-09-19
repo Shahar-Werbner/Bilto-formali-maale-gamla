@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatHebrewDate } from "@/lib/events";
-import { ROLES, ROLE_LABEL, type Role } from "@/lib/roles";
+import { ROLES, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/roles";
 
 type User = { id: string; name: string; email: string; role: string };
 type DeletedEvent = { id: string; name: string; startDate: string };
@@ -95,17 +95,24 @@ export default function AdminPanel({
                   {u.email}
                 </div>
               </div>
-              <select
-                value={u.role}
-                onChange={(e) => setRole(u.id, e.target.value)}
-                className="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
-              >
-                {ROLES.map((r: Role) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABEL[r]}
-                  </option>
-                ))}
-              </select>
+              {/* The label alone does not say what the role can do, and with
+                  three of them that is the question being answered here. */}
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <select
+                  value={u.role}
+                  onChange={(e) => setRole(u.id, e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                >
+                  {ROLES.map((r: Role) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </option>
+                  ))}
+                </select>
+                <span className="max-w-[11rem] text-left text-[11px] leading-tight text-slate-400">
+                  {ROLE_HINT[u.role as Role] ?? ""}
+                </span>
+              </div>
             </li>
           ))}
         </ul>

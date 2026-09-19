@@ -10,6 +10,8 @@ export default function ParticipantRow({
   participant,
   striped,
   isAdmin,
+  canEdit = true,
+  canSeeContacts = true,
   duplicateOf,
   onUpdate,
   onDelete,
@@ -18,6 +20,10 @@ export default function ParticipantRow({
   participant: Participant;
   striped: boolean;
   isAdmin: boolean;
+  /** roster:edit — without it the row is read-only. */
+  canEdit?: boolean;
+  /** roster:contacts — without it there are no contacts on the row to show. */
+  canSeeContacts?: boolean;
   /** The other child sharing this name, if there is one. */
   duplicateOf?: Participant;
   onUpdate: (id: string, patch: Partial<Participant>) => void;
@@ -44,29 +50,39 @@ export default function ParticipantRow({
       }`}
     >
       <div className="flex items-center gap-2 px-3 py-2.5">
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? "סגירת פרטים" : "פתיחת פרטים"}
-          className="shrink-0 px-1 text-xs text-slate-400 hover:text-slate-700"
-        >
-          {open ? "▲" : "▼"}
-        </button>
+        {canSeeContacts ? (
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "סגירת פרטים" : "פתיחת פרטים"}
+            className="shrink-0 px-1 text-xs text-slate-400 hover:text-slate-700"
+          >
+            {open ? "▲" : "▼"}
+          </button>
+        ) : (
+          <span className="shrink-0 px-1 text-xs text-transparent">▾</span>
+        )}
 
         {/* The name carries a visible border like the grade field beside it:
             there is no hover on a phone, so an edit-on-hover affordance would
             be invisible to the people actually using this. */}
-        <input
-          defaultValue={p.name}
-          onBlur={(e) => {
-            if (!e.target.value.trim()) {
-              e.target.value = p.name; // an empty name is not an edit
-              return;
-            }
-            field("name", e.target.value);
-          }}
-          aria-label={`שם: ${p.name}`}
-          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-800 focus:border-slate-400 focus:outline-none"
-        />
+        {canEdit ? (
+          <input
+            defaultValue={p.name}
+            onBlur={(e) => {
+              if (!e.target.value.trim()) {
+                e.target.value = p.name; // an empty name is not an edit
+                return;
+              }
+              field("name", e.target.value);
+            }}
+            aria-label={`שם: ${p.name}`}
+            className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-800 focus:border-slate-400 focus:outline-none"
+          />
+        ) : (
+          <span className="min-w-0 flex-1 px-2 py-1 font-medium text-slate-800">
+            {p.name}
+          </span>
+        )}
 
         {p.parentPhone && (
           <a
@@ -78,13 +94,21 @@ export default function ParticipantRow({
           </a>
         )}
 
-        <input
-          defaultValue={p.grade ?? ""}
-          onBlur={(e) => field("grade", e.target.value)}
-          placeholder="כיתה"
-          aria-label={`כיתה של ${p.name}`}
-          className="w-16 shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm"
-        />
+        {canEdit ? (
+          <input
+            defaultValue={p.grade ?? ""}
+            onBlur={(e) => field("grade", e.target.value)}
+            placeholder="כיתה"
+            aria-label={`כיתה של ${p.name}`}
+            className="w-16 shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm"
+          />
+        ) : (
+          p.grade && (
+            <span className="w-16 shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-center text-xs text-slate-600">
+              {p.grade}
+            </span>
+          )
+        )}
 
         {isAdmin && (
           <button
@@ -120,13 +144,14 @@ export default function ParticipantRow({
         </div>
       )}
 
-      {open && (
+      {open && canSeeContacts && (
         <div className="grid gap-2 px-3 pb-3 pr-10 sm:grid-cols-3">
           <label className="flex flex-col gap-1 text-xs text-slate-500">
             שם הורה
             <input
               defaultValue={p.parentName ?? ""}
               onBlur={(e) => field("parentName", e.target.value)}
+              readOnly={!canEdit}
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
             />
           </label>
@@ -135,6 +160,7 @@ export default function ParticipantRow({
             <input
               defaultValue={p.parentPhone ?? ""}
               onBlur={(e) => field("parentPhone", e.target.value)}
+              readOnly={!canEdit}
               type="tel"
               dir="ltr"
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
@@ -145,6 +171,7 @@ export default function ParticipantRow({
             <input
               defaultValue={p.phone ?? ""}
               onBlur={(e) => field("phone", e.target.value)}
+              readOnly={!canEdit}
               type="tel"
               dir="ltr"
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"

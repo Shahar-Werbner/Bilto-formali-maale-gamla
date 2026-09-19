@@ -3,11 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { sortByGrade } from "@/lib/attendance";
 import AppHeader from "@/components/AppHeader";
 import NewEventForm from "@/components/NewEventForm";
+import { redirect } from "next/navigation";
+import { sessionCapabilities } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
+// The POST behind this form requires event:edit; without it the page would
+// render a form that can only fail. Send them back to the list instead.
 export default async function NewEventPage() {
   const session = await auth();
+  if (!(await sessionCapabilities()).includes("event:edit")) redirect("/events");
 
   const rows = await prisma.participant.findMany({
     where: { deletedAt: null },
