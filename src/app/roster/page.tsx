@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import AppHeader from "@/components/AppHeader";
 import RosterManager from "@/components/RosterManager";
 import { sessionCapabilities } from "@/lib/api-auth";
+import { LIVE_GROUP } from "@/lib/event-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function RosterPage() {
       },
     }),
     prisma.group.findMany({
+      where: LIVE_GROUP,
       orderBy: { createdAt: "asc" },
       include: {
         participants: { where: { deletedAt: null }, select: { id: true } },

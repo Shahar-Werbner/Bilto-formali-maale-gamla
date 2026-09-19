@@ -31,10 +31,22 @@ describe("capabilities", () => {
     for (const c of CAPABILITIES) expect(can("admin", c)).toBe(true);
   });
 
+  // The owner's decision, 19.09: an adult counselor may rename a group but not
+  // delete one. Deleting hides a name that past sessions still point at, so it
+  // belongs with deleting a child or an event, not with editing.
+  it("lets an adult counselor rename a group but not delete one", () => {
+    expect(can("staff", "group:edit")).toBe(true);
+    expect(can("staff", "group:delete")).toBe(false);
+    expect(can("admin", "group:delete")).toBe(true);
+  });
+
   it("withholds only deletion and user management from an adult counselor", () => {
     const missing = CAPABILITIES.filter((c) => !can("staff", c));
     expect([...missing].sort()).toEqual(
-      ["event:delete", "roster:delete", "users:manage"].sort(),
+      // group:delete sits with the other deletions rather than with group:edit:
+      // hiding a group hides what past sessions refer to, so it is the same
+      // class of act as deleting a child or an event. Renaming a group is not.
+      ["event:delete", "group:delete", "roster:delete", "users:manage"].sort(),
     );
   });
 
@@ -47,6 +59,7 @@ describe("capabilities", () => {
     ["event:edit", "reshaping an event, including who is on it"],
     ["event:delete", "deleting an event"],
     ["group:edit", "changing the groups"],
+    ["group:delete", "deleting a group, and with it what past sessions refer to"],
     ["users:manage", "handing out roles"],
     ["shift:assign", "rostering staff"],
     ["shift:view:all", "other people's hours"],

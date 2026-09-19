@@ -7,6 +7,7 @@ import type { Slot } from "@/components/DaySchedule";
 import { formatDateOnly, sortByGrade } from "@/lib/attendance";
 import { isEventKind } from "@/lib/events";
 import { sessionCapabilities } from "@/lib/api-auth";
+import { LIVE_GROUP } from "@/lib/event-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function EventPage({
       },
     }),
     prisma.group.findMany({
+      where: LIVE_GROUP,
       orderBy: { createdAt: "asc" },
       select: {
         id: true,

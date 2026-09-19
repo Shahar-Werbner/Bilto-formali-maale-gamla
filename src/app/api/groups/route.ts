@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { LIVE_GROUP } from "@/lib/event-scope";
 
 // GET /api/groups — all groups with their participants.
 export async function GET() {
@@ -10,6 +11,7 @@ export async function GET() {
 
   try {
     const groups = await prisma.group.findMany({
+      where: LIVE_GROUP,
       orderBy: { createdAt: "asc" },
       include: {
         participants: {

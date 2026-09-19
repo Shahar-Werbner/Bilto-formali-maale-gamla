@@ -52,9 +52,13 @@ export const CAPABILITIES = [
   "schedule:view",
   "schedule:edit",
 
-  // Groups.
+  // Groups. Delete is separate from edit on purpose: a group is no longer only
+  // a reusable label, it is what a past session's split refers to, so removing
+  // one hides part of the record. That puts it with deleting a child or an
+  // event, not with renaming.
   "group:view",
   "group:edit",
+  "group:delete",
 
   // Staff roster and hours (item 4 stage B, item 6).
   "shift:view:own",

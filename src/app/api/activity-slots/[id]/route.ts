@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
-import { liveActivitySlot, slotNotFound } from "@/lib/event-scope";
+import { liveGroup, liveActivitySlot, slotNotFound } from "@/lib/event-scope";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -23,14 +23,20 @@ export async function PATCH(
     if (body?.startTime !== undefined) {
       const v = typeof body.startTime === "string" ? body.startTime.trim() : "";
       if (!TIME.test(v)) {
-        return NextResponse.json({ error: "שעת התחלה לא תקינה" }, { status: 400 });
+        return NextResponse.json(
+          { error: "שעת התחלה לא תקינה" },
+          { status: 400 },
+        );
       }
       data.startTime = v;
     }
     if (body?.endTime !== undefined) {
       const v = typeof body.endTime === "string" ? body.endTime.trim() : "";
       if (v && !TIME.test(v)) {
-        return NextResponse.json({ error: "שעת סיום לא תקינה" }, { status: 400 });
+        return NextResponse.json(
+          { error: "שעת סיום לא תקינה" },
+          { status: 400 },
+        );
       }
       data.endTime = v || null;
     }
@@ -60,7 +66,7 @@ export async function PATCH(
           : null;
       // An unknown id would only fail later as a foreign-key error, so check it
       // here and answer with something the UI can show.
-      if (v && !(await prisma.group.findUnique({ where: { id: v } }))) {
+      if (v && !(await prisma.group.findFirst({ where: liveGroup(v) }))) {
         return NextResponse.json({ error: "קבוצה לא נמצאה" }, { status: 400 });
       }
       data.groupId = v;

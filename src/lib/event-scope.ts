@@ -44,6 +44,18 @@ export function liveEvent(id: string) {
   return { id, ...LIVE_EVENT };
 }
 
+// Group is soft-deleted too, for a reason worth stating because it is not the
+// same one as Event's. A group is now part of the record of a past session
+// (DayGroupAssignment points at it), so hard-deleting one rewrote history. The
+// consequence for queries is the ordinary one: a deleted group must not appear
+// in any picker, list or count, while the rows that reference it stay readable.
+export const LIVE_GROUP = { deletedAt: null } as const;
+
+/** A Group, only if it is not soft-deleted. */
+export function liveGroup(id: string) {
+  return { id, ...LIVE_GROUP };
+}
+
 // A deleted event answers the same way a never-existing one does. Telling the
 // two apart would leak that the row is still there, and there is nothing the
 // person on the phone could do with the difference anyway.
@@ -57,4 +69,8 @@ export function eventNotFound(): NextResponse {
 
 export function slotNotFound(): NextResponse {
   return NextResponse.json({ error: "הפעילות לא נמצאה" }, { status: 404 });
+}
+
+export function groupNotFound(): NextResponse {
+  return NextResponse.json({ error: "הקבוצה לא נמצאה" }, { status: 404 });
 }
