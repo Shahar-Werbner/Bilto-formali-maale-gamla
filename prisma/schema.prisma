@@ -28,6 +28,7 @@ model User {
   eventMarks     EventAttendance[]  @relation("EventMarkedBy")
   dismissalMarks Dismissal[]        @relation("DismissalMarkedBy")
   shifts         Shift[]
+  approvedSlots  ActivitySlot[]     @relation("SlotApprovedBy")
   createdAt      DateTime           @default(now())
 }
 
@@ -224,10 +225,32 @@ model ActivitySlot {
   group      Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
   notes      String?
   order      Int      @default(0)
-  createdAt  DateTime @default(now())
+
+  // The approval loop (item 4). A youth counselor plans the activity they are
+  // assigned to; an adult signs it off. Without somewhere to hold "waiting",
+  // youth had to be given view-only access to the schedule, which is less than
+  // the operation actually wants.
+  //
+  // "approved" | "pending" | "draft". A plain String for the same reason
+  // User.role and Event.kind are.
+  //
+  // The default is "approved", and it is the whole reason this is safe to add
+  // to a live schedule: without it every slot that already exists — and every
+  // slot an adult creates from now on — would silently become "waiting for
+  // approval". For someone who may edit the schedule, the approval is implied
+  // by the act of creating the row. Only a slot written by someone who needs
+  // sign-off is set to "pending", explicitly, by the route that writes it.
+  status           String    @default("approved")
+  approvedByUserId String?
+  approvedBy       User?     @relation("SlotApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+
+  createdAt DateTime @default(now())
 
   @@index([eventDayId])
   @@index([groupId])
+  // The review screen's question: what on this day is waiting for me.
+  @@index([status])
 }
 
 // ── Dismissal (wave 3, item 2) ──────────────────────────────────────────────
