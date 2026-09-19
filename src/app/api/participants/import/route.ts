@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
+import { liveGroup } from "@/lib/event-scope";
 import {
   normalizePhone,
   partitionByExisting,
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "אין שורות תקינות" }, { status: 400 });
     }
 
-    if (groupId && !(await prisma.group.findUnique({ where: { id: groupId } }))) {
+    if (groupId && !(await prisma.group.findFirst({ where: liveGroup(groupId) }))) {
       return NextResponse.json({ error: "קבוצה לא נמצאה" }, { status: 400 });
     }
 

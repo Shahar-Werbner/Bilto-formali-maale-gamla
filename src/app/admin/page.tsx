@@ -34,22 +34,34 @@ export default async function AdminPage() {
     );
   }
 
-  const [users, deletedEvents, deletedParticipants] = await Promise.all([
-    prisma.user.findMany({
-      orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, email: true, role: true },
-    }),
-    prisma.event.findMany({
-      where: { deletedAt: { not: null } },
-      orderBy: { deletedAt: "desc" },
-      select: { id: true, name: true, startDate: true, deletedAt: true },
-    }),
-    prisma.participant.findMany({
-      where: { deletedAt: { not: null } },
-      orderBy: { deletedAt: "desc" },
-      select: { id: true, name: true, grade: true, deletedAt: true },
-    }),
-  ]);
+  const [users, deletedEvents, deletedParticipants, deletedGroups] =
+    await Promise.all([
+      prisma.user.findMany({
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, email: true, role: true },
+      }),
+      prisma.event.findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: "desc" },
+        select: { id: true, name: true, startDate: true, deletedAt: true },
+      }),
+      prisma.participant.findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: "desc" },
+        select: { id: true, name: true, grade: true, deletedAt: true },
+      }),
+      // The session count is the point of the row: it says what restoring would
+      // bring back, and what a delete had been about to hide.
+      prisma.group.findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { dayAssignments: true } },
+        },
+      }),
+    ]);
 
   return (
     <>
@@ -70,6 +82,11 @@ export default async function AdminPage() {
               grade: p.grade,
             })),
           )}
+          deletedGroups={deletedGroups.map((g) => ({
+            id: g.id,
+            name: g.name,
+            sessions: g._count.dayAssignments,
+          }))}
         />
       </main>
     </>

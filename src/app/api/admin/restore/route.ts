@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 
 // POST /api/admin/restore — undo a soft delete.
-// Body: { kind: "event" | "participant", id }
+// Body: { kind: "event" | "participant" | "group", id }
 export async function POST(request: Request) {
   const { response } = await requireAdmin();
   if (response) return response;
@@ -14,12 +14,18 @@ export async function POST(request: Request) {
     const id = typeof body?.id === "string" ? body.id : "";
     const kind = body?.kind;
 
-    if (!id || (kind !== "event" && kind !== "participant")) {
-      return NextResponse.json({ error: "נתונים חסרים או שגויים" }, { status: 400 });
+    const KINDS = ["event", "participant", "group"] as const;
+    if (!id || !KINDS.includes(kind)) {
+      return NextResponse.json(
+        { error: "נתונים חסרים או שגויים" },
+        { status: 400 },
+      );
     }
 
     if (kind === "event") {
       await prisma.event.update({ where: { id }, data: { deletedAt: null } });
+    } else if (kind === "group") {
+      await prisma.group.update({ where: { id }, data: { deletedAt: null } });
     } else {
       await prisma.participant.update({
         where: { id },

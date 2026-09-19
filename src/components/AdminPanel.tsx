@@ -8,17 +8,22 @@ import { ROLES, ROLE_LABEL, type Role } from "@/lib/roles";
 type User = { id: string; name: string; email: string; role: string };
 type DeletedEvent = { id: string; name: string; startDate: string };
 type DeletedParticipant = { id: string; name: string; grade: string | null };
+// A deleted group keeps its past-session assignments, so restoring it brings
+// back the record of who was in it, not just the name.
+type DeletedGroup = { id: string; name: string; sessions: number };
 
 export default function AdminPanel({
   currentUserId,
   users: initialUsers,
   deletedEvents,
   deletedParticipants,
+  deletedGroups,
 }: {
   currentUserId: string;
   users: User[];
   deletedEvents: DeletedEvent[];
   deletedParticipants: DeletedParticipant[];
+  deletedGroups: DeletedGroup[];
 }) {
   const router = useRouter();
   const [users, setUsers] = useState(initialUsers);
@@ -42,7 +47,7 @@ export default function AdminPanel({
     }
   }
 
-  async function restore(kind: "event" | "participant", id: string) {
+  async function restore(kind: "event" | "participant" | "group", id: string) {
     setError(null);
     try {
       const res = await fetch("/api/admin/restore", {
@@ -114,8 +119,8 @@ export default function AdminPanel({
       <section>
         <h2 className="mb-2 text-lg font-bold text-slate-900">סל המחזור</h2>
         <p className="mb-2 text-sm text-slate-500">
-          אירועים וילדים שנמחקו. הנתונים שלהם נשמרו — שחזור מחזיר אותם בדיוק כפי
-          שהיו, כולל הנוכחות.
+          אירועים, ילדים וקבוצות שנמחקו. הנתונים שלהם נשמרו — שחזור מחזיר אותם
+          בדיוק כפי שהיו, כולל הנוכחות והחלוקה לקבוצות במפגשים שכבר היו.
         </p>
 
         <h3 className="mb-1 mt-3 text-sm font-semibold text-slate-600">
@@ -175,6 +180,39 @@ export default function AdminPanel({
                 </span>
                 <button
                   onClick={() => restore("participant", p.id)}
+                  className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  שחזור
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <h3 className="mb-1 mt-4 text-sm font-semibold text-slate-600">
+          קבוצות ({deletedGroups.length})
+        </h3>
+        {deletedGroups.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-400">
+            אין קבוצות שנמחקו.
+          </p>
+        ) : (
+          <ul className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {deletedGroups.map((g) => (
+              <li
+                key={g.id}
+                className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 last:border-b-0"
+              >
+                <span className="min-w-0 truncate font-medium text-slate-800">
+                  {g.name}
+                  {g.sessions > 0 && (
+                    <span className="mr-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                      {g.sessions} מפגשים
+                    </span>
+                  )}
+                </span>
+                <button
+                  onClick={() => restore("group", g.id)}
                   className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   שחזור

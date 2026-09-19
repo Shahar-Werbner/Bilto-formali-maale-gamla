@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
-import { liveEventDay } from "@/lib/event-scope";
+import { liveGroup, liveEventDay } from "@/lib/event-scope";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -62,7 +62,10 @@ export async function POST(
     }
 
     const groupId = cleanStr(body?.groupId);
-    if (groupId && !(await prisma.group.findUnique({ where: { id: groupId } }))) {
+    if (
+      groupId &&
+      !(await prisma.group.findFirst({ where: liveGroup(groupId) }))
+    ) {
       return NextResponse.json({ error: "קבוצה לא נמצאה" }, { status: 400 });
     }
 

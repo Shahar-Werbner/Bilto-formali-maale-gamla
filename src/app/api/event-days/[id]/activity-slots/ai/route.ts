@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
-import { liveEventDay } from "@/lib/event-scope";
+import { LIVE_GROUP, liveEventDay } from "@/lib/event-scope";
 import { parseSchedule } from "@/lib/ai-schedule";
 import { formatDateOnly } from "@/lib/attendance";
 import { formatHebrewDate } from "@/lib/events";
@@ -39,7 +39,10 @@ export async function POST(
       typeof body?.pdfBase64 === "string" ? body.pdfBase64 : undefined;
 
     if (!text.trim() && !pdfBase64) {
-      return NextResponse.json({ error: "לא נשלח טקסט או קובץ" }, { status: 400 });
+      return NextResponse.json(
+        { error: "לא נשלח טקסט או קובץ" },
+        { status: 400 },
+      );
     }
     if (text.length > MAX_TEXT || (pdfBase64?.length ?? 0) > MAX_PDF_BASE64) {
       return NextResponse.json(
@@ -56,8 +59,13 @@ export async function POST(
       return NextResponse.json({ error: "יום לא נמצא" }, { status: 404 });
     }
 
-    const groups = await prisma.group.findMany({ select: { id: true, name: true } });
-    const groupByName = new Map(groups.map((g) => [g.name.trim().toLowerCase(), g]));
+    const groups = await prisma.group.findMany({
+      where: LIVE_GROUP,
+      select: { id: true, name: true },
+    });
+    const groupByName = new Map(
+      groups.map((g) => [g.name.trim().toLowerCase(), g]),
+    );
 
     let parsed;
     try {

@@ -32,16 +32,34 @@ model User {
 }
 
 model Group {
-  id             String               @id @default(cuid())
-  name           String
-  // A participant can belong to many groups; a group has many participants.
+  id   String @id @default(cuid())
+  name String
+
+  // Two kinds of grouping, and the project owner decided (19.09) to keep both.
+  //
+  // `participants` is the standing membership — "Yael is in the Lions this
+  // year". `dayAssignments` is what actually happened on one session, which
+  // here changes from week to week.
+  //
+  // The standing membership is a default to fill a session *from*, never what a
+  // session displays: a day with no assignments means "not split yet", not
+  // "everyone is in their permanent group".
   participants   Participant[]        @relation("GroupMembers")
   activitySlots  ActivitySlot[]
-  // Per-day membership (wave 3 item 3). The m-n `participants` above stays for
-  // now as the reusable/default membership; whether it is dropped in favour of
-  // this is item 3's decision, not the schema session's.
   dayAssignments DayGroupAssignment[]
-  createdAt      DateTime             @default(now())
+
+  // Soft delete, for the same reason Event and Participant have one, and for a
+  // reason that only appeared once per-session groups existed: a group is no
+  // longer just a label, it is part of the record of what happened on a day.
+  // Hard-deleting one cascaded away every past assignment pointing at it, so a
+  // session that had three children rendered as one — deleting in the present
+  // silently rewrote the past. With `deletedAt` the group leaves every screen,
+  // past sessions still show it, and /admin can restore it.
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([deletedAt])
 }
 
 model Participant {

@@ -1,7 +1,13 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { liveActivitySlot, liveDayRow, liveEvent, liveEventDay } from "../event-scope";
+import {
+  liveActivitySlot,
+  liveDayRow,
+  liveEvent,
+  liveEventDay,
+  liveGroup,
+} from "../event-scope";
 
 // Invariant 1 (CLAUDE.md): a soft-deleted Event has to be gone from every
 // screen, export and report.
@@ -30,6 +36,9 @@ const SCOPED_MODELS = [
   "dayGroupAssignment",
   "pickupAuthorization",
   "shift",
+  // Group is soft-deleted for a different reason than the rest — it is part of
+  // the record of a past session — but it scopes exactly the same way.
+  "group",
 ];
 
 // Routes that legitimately need no scoping. Each one states why, because an
@@ -102,6 +111,10 @@ describe("the scope filters themselves", () => {
       id: "d1",
       event: { deletedAt: null },
     });
+  });
+
+  it("scopes a group by its own deletedAt", () => {
+    expect(liveGroup("g1")).toEqual({ id: "g1", deletedAt: null });
   });
 
   it("scopes anything hanging off a day through the day's event", () => {
