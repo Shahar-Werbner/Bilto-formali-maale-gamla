@@ -115,6 +115,9 @@ result at 390px wide**, which is how the team actually uses this.
   summary file.
 - `docs/WORKING-GUIDE.md` — written for the project owner, not for you. Do not
   restructure it to suit a session; if something in it is wrong, say so.
+- The owner reads a published control panel rather than this repo:
+  https://claude.ai/artifact/JgpWDqN12xtFGB2uMwssu5 — refreshing it is step 4 of the handoff in ROADMAP. Change only what
+  actually changed; it is his page, not a session's.
 
 Merging: with CI green and behaviour verified, merge. Stop and ask first for a
 destructive migration, a permissions change, or anything hard to undo.
