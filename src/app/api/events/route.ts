@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { parseDateOnly } from "@/lib/attendance";
 import { generateEventDays } from "@/lib/events";
@@ -8,7 +8,7 @@ import { parseScheduleInput, validateRange } from "@/lib/event-input";
 
 // GET /api/events — all events (newest first) with day + participant counts.
 export async function GET() {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("event:view");
   if (response) return response;
 
   try {
@@ -31,7 +31,7 @@ export async function GET() {
 //         camp:      includeFriday, includeSaturday, defaultStartTime, defaultEndTime
 //         recurring: weekdays: [{ weekday, startTime, endTime }] }
 export async function POST(request: Request) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("event:edit");
   if (response) return response;
 
   try {

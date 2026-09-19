@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { eventNotFound, liveEvent } from "@/lib/event-scope";
 
@@ -10,7 +10,7 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("event:edit");
   if (response) return response;
 
   try {
@@ -43,7 +43,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("event:edit");
   if (response) return response;
 
   try {

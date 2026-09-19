@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSession } from "@/lib/api-auth";
+import { requireAdmin, requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { formatDateOnly, parseDateOnly } from "@/lib/attendance";
 import { generateEventDays, isEventKind, type GeneratedDay } from "@/lib/events";
@@ -24,7 +24,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("event:edit");
   if (response) return response;
 
   try {

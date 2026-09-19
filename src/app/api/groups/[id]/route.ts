@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { groupNotFound, liveGroup } from "@/lib/event-scope";
 
@@ -9,7 +9,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("group:edit");
   if (response) return response;
 
   try {
@@ -45,14 +45,15 @@ export async function PATCH(
 // nothing to say a group had ever been deleted. Deleting in the present must
 // not rewrite the past.
 //
-// Admin only, matching deleting an event or a child. It was the one delete in
-// the system any signed-in member of staff could perform, which will matter
-// more once teenage counselors have accounts.
+// `group:delete` rather than `group:edit`: deleting a group is not editing one.
+// It hides a name that past sessions still refer to, which is the same class of
+// act as deleting a child or an event, and those are admin-only already. Owner's
+// decision, 19.09. Editing a group stays open to any adult counselor.
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireAdmin();
+  const { response } = await requireCapability("group:delete");
   if (response) return response;
 
   try {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { isStatus } from "@/lib/attendance";
 import { eventDayNotFound, liveEventDay } from "@/lib/event-scope";
@@ -9,7 +9,7 @@ import { eventDayNotFound, liveEventDay } from "@/lib/event-scope";
 // event on a given day. Body: { eventDayId, status, participantIds? }
 // Without participantIds every participant of the event is marked.
 export async function POST(request: Request) {
-  const { session, response } = await requireSession();
+  const { session, response } = await requireCapability("attendance:mark");
   if (response) return response;
 
   try {

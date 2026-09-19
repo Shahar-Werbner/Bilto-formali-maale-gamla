@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSession } from "@/lib/api-auth";
+import { requireAdmin, requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { normalizePhone } from "@/lib/participants";
 
@@ -10,7 +10,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("roster:edit");
   if (response) return response;
 
   try {

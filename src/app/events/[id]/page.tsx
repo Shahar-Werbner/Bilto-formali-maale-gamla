@@ -6,6 +6,7 @@ import EventBoard from "@/components/EventBoard";
 import type { Slot } from "@/components/DaySchedule";
 import { formatDateOnly, sortByGrade } from "@/lib/attendance";
 import { isEventKind } from "@/lib/events";
+import { sessionCapabilities } from "@/lib/api-auth";
 import { LIVE_GROUP } from "@/lib/event-scope";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ export default async function EventPage({
   params: { id: string };
 }) {
   const session = await auth();
+  const capabilities = await sessionCapabilities();
 
   const [event, groups] = await Promise.all([
     prisma.event.findFirst({
@@ -122,6 +124,7 @@ export default async function EventPage({
           groups={plainGroups}
           slotsByDay={slotsByDay}
           allParticipants={allParticipants}
+          capabilities={capabilities}
         />
       </main>
     </>

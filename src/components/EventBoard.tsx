@@ -10,6 +10,7 @@ import {
   type Status,
 } from "@/lib/attendance";
 import { formatHebrewDate, formatTimeRange, hoursBetween } from "@/lib/events";
+import type { Capability } from "@/lib/roles";
 import DaySchedule, { type Slot } from "./DaySchedule";
 import EventSettings, { type EventSettingsData } from "./EventSettings";
 import SaveStatus from "./SaveStatus";
@@ -69,12 +70,19 @@ export default function EventBoard({
   groups,
   slotsByDay,
   allParticipants,
+  capabilities = [],
 }: {
   event: EventData;
   groups: Group[];
   slotsByDay: Record<string, Slot[]>;
   allParticipants: Participant[];
+  capabilities?: readonly Capability[];
 }) {
+  // A youth counselor comes here to mark attendance. Reshaping the event and
+  // rewriting the day's schedule are adult jobs, and the routes behind those
+  // controls refuse them anyway.
+  const canEditEvent = capabilities.includes("event:edit");
+  const canEditSchedule = capabilities.includes("schedule:edit");
   const [selectedDayId, setSelectedDayId] = useState<string>(() =>
     defaultDayId(event.days),
   );
@@ -402,9 +410,10 @@ export default function EventBoard({
         ⬇ ייצוא כל האירוע (Google Sheets / Excel)
       </a>
 
-      <EventSettings event={event} />
+      {canEditEvent && <EventSettings event={event} />}
 
       {/* Manage participants */}
+      {canEditEvent && (
       <div className="rounded-2xl border border-slate-200 bg-white">
         <button
           onClick={() => setManageOpen((v) => !v)}
@@ -478,6 +487,8 @@ export default function EventBoard({
         )}
       </div>
 
+      )}
+
       {/* Day selector */}
       <div
         ref={dayStripRef}
@@ -550,6 +561,7 @@ export default function EventBoard({
                 }))
               }
               onBlur={(e) => saveDescription(e.target.value)}
+              readOnly={!canEditSchedule}
               placeholder="מה עשינו היום? (יתווסף בעתיד גם עם AI)"
               rows={2}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
@@ -562,6 +574,7 @@ export default function EventBoard({
             eventDayId={selectedDayId}
             initialSlots={slotsByDay[selectedDayId] ?? []}
             groups={groups}
+            canEdit={canEditSchedule}
           />
 
           {/* Attendance */}

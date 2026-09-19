@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { liveEventDay } from "@/lib/event-scope";
 import { safeSheetName, xlsxHeaders } from "@/lib/xlsx";
@@ -38,7 +38,7 @@ export async function GET(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("event:view");
   if (response) return response;
 
   try {

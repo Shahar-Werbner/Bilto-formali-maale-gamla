@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/api-auth";
+import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { isStatus } from "@/lib/attendance";
 
 // GET /api/event-attendance?eventDayId=... — statuses for a day, by participant.
 export async function GET(request: Request) {
-  const { response } = await requireSession();
+  const { response } = await requireCapability("attendance:mark");
   if (response) return response;
 
   try {
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 // POST /api/event-attendance — upsert one participant's status for a day.
 // Body: { eventDayId, participantId, status }
 export async function POST(request: Request) {
-  const { session, response } = await requireSession();
+  const { session, response } = await requireCapability("attendance:mark");
   if (response) return response;
 
   try {

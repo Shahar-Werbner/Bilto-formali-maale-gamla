@@ -5,11 +5,14 @@ import AppHeader from "@/components/AppHeader";
 import DeleteEventButton from "@/components/DeleteEventButton";
 import { formatDateOnly } from "@/lib/attendance";
 import { WEEKDAY_NAMES, formatHebrewDate } from "@/lib/events";
+import { sessionCapabilities } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage() {
   const session = await auth();
+  const capabilities = await sessionCapabilities();
+  const canEdit = capabilities.includes("event:edit");
 
   const events = await prisma.event.findMany({
     where: { deletedAt: null },
@@ -30,12 +33,14 @@ export default async function EventsPage() {
       <main className="mx-auto max-w-3xl px-4 py-4">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">אירועים</h1>
-          <Link
-            href="/events/new"
-            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
-          >
-            + אירוע חדש
-          </Link>
+          {canEdit && (
+            <Link
+              href="/events/new"
+              className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+            >
+              + אירוע חדש
+            </Link>
+          )}
         </div>
 
         {events.length === 0 ? (
