@@ -159,6 +159,41 @@ describe("staffing", () => {
     expect(s.level).toBe("ok");
   });
 
+  // ── What the parents said (item 5) ────────────────────────────────────────
+
+  it("uses the parents' answers for a session that has not happened yet", () => {
+    const s = staffing({ ...base, markedChildren: null, expectedChildren: 30 });
+    expect(s.children).toBe(30);
+    expect(s.childrenSource).toBe("expected");
+  });
+
+  it("still prefers the real number once the day is fully marked", () => {
+    const s = staffing({ ...base, markedChildren: 24, expectedChildren: 30 });
+    expect(s.children).toBe(24);
+    expect(s.childrenSource).toBe("marked");
+  });
+
+  it("never lets an expected figure invent children above the roster", () => {
+    // A stale expected count, or an answer for a child since taken off the
+    // event, must not be able to push the number either way past the roster.
+    expect(staffing({ ...base, expectedChildren: 99 }).children).toBe(40);
+    expect(staffing({ ...base, expectedChildren: -5 }).children).toBe(0);
+  });
+
+  it("falls back to the roster when no parent has answered", () => {
+    const s = staffing({ ...base, expectedChildren: null, staffCount: 1 });
+    expect(s.childrenSource).toBe("roster");
+    expect(s.children).toBe(40);
+  });
+
+  it("warns on the expected number, not on the roster it came from", () => {
+    // Thirty children and three counselors is short at a threshold of eight,
+    // and the alert has to say so even though the roster is forty.
+    const s = staffing({ ...base, expectedChildren: 30, staffCount: 3 });
+    expect(s.level).toBe("short");
+    expect(s.missingStaff).toBe(1);
+  });
+
   it("flags a session with counselors but no adult", () => {
     // Most of the team are teenagers here, so "four counselors" can mean four
     // 15-year-olds — a different sentence from "short-staffed".

@@ -65,26 +65,46 @@ export async function GET(request: Request) {
     });
     if (!day) return eventDayNotFound();
 
-    const records = await prisma.dismissal.findMany({
-      where: { eventDayId },
-      select: {
-        participantId: true,
-        method: true,
-        pickedUpByName: true,
-        note: true,
-        at: true,
-      },
-    });
+    const [records, expected] = await Promise.all([
+      prisma.dismissal.findMany({
+        where: { eventDayId },
+        select: {
+          participantId: true,
+          method: true,
+          pickedUpByName: true,
+          note: true,
+          at: true,
+        },
+      }),
+      // What the family said this morning (item 5). It is shown here and
+      // nowhere else that matters, because the person reading this screen is
+      // the one standing at the gate when somebody arrives for a six-year-old.
+      //
+      // It is deliberately NOT a dismissal. A parent writing "היום סבתא
+      // אוספת" has not sent their child home — turning that into a Dismissal
+      // row would make the child read as already gone, and would walk past the
+      // rule that a one-off change needs an adult. So it arrives as something
+      // a parent said, and an adult still records what actually happened.
+      prisma.expectedAttendance.findMany({
+        where: { eventDayId, participant: { deletedAt: null } },
+        select: { participantId: true, coming: true, note: true },
+      }),
+    ]);
     const byParticipant = new Map(records.map((r) => [r.participantId, r]));
+    const expectedBy = new Map(expected.map((e) => [e.participantId, e]));
 
     const children = sortByGrade(day.event.participants).map((p) => {
       const record = byParticipant.get(p.id);
+      const said = expectedBy.get(p.id);
       return {
         participantId: p.id,
         name: p.name,
         grade: p.grade,
         defaultDismissal: dismissalMethodOf(p.defaultDismissal),
         authorizations: p.pickupAuth,
+        parentSaid: said
+          ? { coming: said.coming, note: said.note }
+          : null,
         dismissal: record
           ? {
               method: dismissalMethodOf(record.method),

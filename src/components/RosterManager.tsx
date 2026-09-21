@@ -313,6 +313,7 @@ export default function RosterManager({
               canEdit={canEditRoster}
               canSeeContacts={capabilities.includes("roster:contacts")}
               canAuthorizePickup={capabilities.includes("dismissal:authorize")}
+              canManageParentLinks={capabilities.includes("parent:link")}
               duplicateOf={duplicates.get(p.id)}
               onUpdate={updateParticipant}
               onDelete={deleteParticipant}

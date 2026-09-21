@@ -116,6 +116,12 @@ export type StaffingInput = {
   rosteredChildren: number;
   /** Present + late, but only once the day is fully marked. See below. */
   markedChildren: number | null;
+  /**
+   * What the parents said, before the day starts (item 5): the roster minus
+   * the children a parent actively said were not coming. null when nobody has
+   * answered yet, which is the same as "we only know the roster".
+   */
+  expectedChildren?: number | null;
   /** Everyone assigned to the day, youth counselors included. */
   staffCount: number;
   /** Of those, the adults (staff or admin). */
@@ -126,7 +132,7 @@ export type StaffingInput = {
 
 export type Staffing = {
   children: number;
-  childrenSource: "roster" | "marked";
+  childrenSource: "roster" | "expected" | "marked";
   staffCount: number;
   adultCount: number;
   threshold: number;
@@ -144,17 +150,25 @@ export type Staffing = {
  * The daily question — "who is coming on Tuesday, and are we short?" — as a
  * number the day's screen can warn on.
  *
- * Which child count to use is the one real decision here. A fully marked day
- * has a true number, so it is used. A partly marked day does not: five marked
- * of fifty would read as "five children, plenty of staff" halfway through the
- * morning, which is the alert failing in the dangerous direction. So anything
- * short of fully marked falls back to the roster — the most children that can
- * turn up. It over-warns before a session, and over-warning about staffing is
- * the side to be wrong on.
+ * Which child count to use is the one real decision here, and there are three
+ * answers in order of how much they are actually known:
+ *
+ *   1. A **fully marked** day has a true number, so it wins. A partly marked
+ *      day does not: five marked of fifty would read as "five children, plenty
+ *      of staff" halfway through the morning, which is the alert failing in
+ *      the dangerous direction.
+ *   2. What the **parents said** (item 5), for a day that has not happened
+ *      yet. This only ever comes in below the roster, and only by the children
+ *      a parent explicitly said were not coming — silence still counts as
+ *      coming, so the number cannot drift down on its own.
+ *   3. The **roster** — the most children who can turn up. It over-warns
+ *      before a session, and over-warning about staffing is the side to be
+ *      wrong on.
  */
 export function staffing({
   rosteredChildren,
   markedChildren,
+  expectedChildren = null,
   staffCount,
   adultCount,
   maxChildrenPerStaff,
@@ -164,13 +178,27 @@ export function staffing({
       ? maxChildrenPerStaff
       : DEFAULT_MAX_CHILDREN_PER_STAFF;
 
-  const children = markedChildren === null ? rosteredChildren : markedChildren;
+  // A parent's answer never raises the count above the roster, and never
+  // replaces a real marked number. Clamping rather than trusting the caller
+  // keeps a stale or wrong expected figure from inventing children.
+  const expected =
+    expectedChildren === null
+      ? null
+      : Math.max(0, Math.min(expectedChildren, rosteredChildren));
+
+  const [children, childrenSource] =
+    markedChildren !== null
+      ? ([markedChildren, "marked"] as const)
+      : expected !== null
+        ? ([expected, "expected"] as const)
+        : ([rosteredChildren, "roster"] as const);
+
   const needed = Math.ceil(children / threshold);
   const missingStaff = Math.max(0, needed - staffCount);
 
   return {
     children,
-    childrenSource: markedChildren === null ? "roster" : "marked",
+    childrenSource,
     staffCount,
     adultCount,
     threshold,

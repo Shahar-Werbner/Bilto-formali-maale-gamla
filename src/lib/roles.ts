@@ -83,6 +83,14 @@ export const CAPABILITIES = [
   "shift:view:all",
   "shift:assign",
 
+  // Handing a family their personal link (item 5), and turning one off.
+  //
+  // Its own capability rather than part of roster:edit, because of what a link
+  // is: a URL that lets whoever holds it write to one child's record with no
+  // sign-in at all. Issuing one is closer to handing out a key than to editing
+  // a name, so it sits with contacts and above the day-to-day.
+  "parent:link",
+
   // User administration.
   "users:manage",
 ] as const;
@@ -110,6 +118,7 @@ const STAFF: Capability[] = [
   "shift:view:own",
   "shift:view:all",
   "shift:assign",
+  "parent:link",
 ];
 
 // A youth counselor is typically 15. They run one activity, not the session.
@@ -128,6 +137,9 @@ const STAFF: Capability[] = [
 //                     out of reach is writing straight into the live schedule,
 //                     and approving anything — including their own proposal.
 //   schedule:approve — approving your own plan is the loop with nothing in it.
+//   parent:link     — a parent link is an unauthenticated write into a child's
+//                     record. Minting one, or turning one off, is an adult's
+//                     call; a youth counselor asks for it rather than issues it.
 const YOUTH: Capability[] = [
   "attendance:mark",
   "roster:view",

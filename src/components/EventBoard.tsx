@@ -31,6 +31,8 @@ type Day = {
   description: string | null;
   startTime: string | null;
   endTime: string | null;
+  /** What the parents said through their links (item 5). */
+  expected?: { coming: number; notComing: number };
 };
 type Group = { id: string; name: string; memberIds: string[] };
 type EventData = EventSettingsData & {
@@ -538,6 +540,24 @@ export default function EventBoard({
               לא הוגדרו שעות ליום זה
             </span>
           )}
+          {/* The expected head count (item 5) — the number the kitchen cooks
+              to. It is the roster minus the children a parent actively said
+              were not coming: silence counts as coming, because cooking for
+              four too many is leftovers and counting four out who then arrive
+              is not. Shown only once a family has answered; before that it
+              would just be the roster wearing a different label. */}
+          {selectedDay.expected &&
+            selectedDay.expected.coming + selectedDay.expected.notComing > 0 && (
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
+                <span className="font-semibold">
+                  צפויים: {event.participants.length - selectedDay.expected.notComing}
+                </span>
+                {` מתוך ${event.participants.length}`}
+                {selectedDay.expected.notComing > 0 &&
+                  ` · ${selectedDay.expected.notComing} הודיעו שלא מגיעים`}
+              </span>
+            )}
+
           <a
             href={`/api/event-days/${selectedDayId}/export`}
             className="inline-flex w-fit items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"

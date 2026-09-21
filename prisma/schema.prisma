@@ -84,14 +84,16 @@ model Participant {
   // adult. The unsafe direction must never be the one you get by forgetting.
   defaultDismissal String @default("escort")
 
-  groups     Group[]               @relation("GroupMembers")
-  attendance AttendanceRecord[]
-  events     Event[]               @relation("EventParticipants")
-  eventMarks EventAttendance[]
-  pickupAuth PickupAuthorization[]
-  dismissals Dismissal[]
-  dayGroups  DayGroupAssignment[]
-  createdAt  DateTime              @default(now())
+  groups      Group[]               @relation("GroupMembers")
+  attendance  AttendanceRecord[]
+  events      Event[]               @relation("EventParticipants")
+  eventMarks  EventAttendance[]
+  pickupAuth  PickupAuthorization[]
+  dismissals  Dismissal[]
+  dayGroups   DayGroupAssignment[]
+  parentLinks ParentLink[]
+  expected    ExpectedAttendance[]
+  createdAt   DateTime              @default(now())
 
   @@index([deletedAt])
 }
@@ -187,6 +189,7 @@ model EventDay {
   dismissals       Dismissal[]
   groupAssignments DayGroupAssignment[]
   shifts           Shift[]
+  expected         ExpectedAttendance[]
   createdAt        DateTime             @default(now())
 
   @@unique([eventId, date])
@@ -336,4 +339,87 @@ model Shift {
   @@unique([userId, eventDayId])
   @@index([eventDayId])
   @@index([userId])
+}
+
+// ── Parents (wave 3, item 5) ────────────────────────────────────────────────
+//
+// There are no parent accounts, and that is a decision rather than a shortcut:
+// fifty families will not keep passwords for a Tuesday afternoon, and a login
+// used twice a year is a login that has been lost by November. Instead each
+// family gets a personal link carrying a long random token, the way a calendar
+// subscription link works.
+//
+// What that costs is that everything a parent writes arrives **unauthenticated**
+// — the token is the entire proof. The shape below is what makes that
+// survivable: the link is a row that can be revoked on its own, and the only
+// thing a link can write is one boolean and one short note about one child.
+
+model ParentLink {
+  id            String      @id @default(cuid())
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  // 256 bits, base64url (see src/lib/parents.ts). Stored as it is sent rather
+  // than hashed, deliberately: the staff screen has to be able to show "copy
+  // link" again next month, because parents lose WhatsApp messages and change
+  // phones, and a link that can only ever be displayed once turns every such
+  // parent into a re-issue. The token guards one child's coming/not-coming and
+  // a short note — not an account, not the roster, not anyone's contacts.
+  token String @unique
+
+  // Whose link this is — "אמא", "אבא", "סבתא". A separated couple needs two
+  // links, and two links are also what lets one of them be revoked without
+  // cutting off the other. Free text because family shapes are not an enum.
+  label String?
+
+  // Revoked rather than deleted: the row is what stops the same token being
+  // issued again, and "this link was turned off on the 3rd" is a thing an
+  // adult may need to see later.
+  revokedAt DateTime?
+
+  // Whether anyone ever opened it. Without this, a parent who never answers is
+  // indistinguishable from a parent whose link never arrived — and the second
+  // one is a WhatsApp message to re-send, not a phone call to make.
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([participantId])
+}
+
+// One parent's answer for one child on one day: are they coming, and anything
+// they want the staff to know. Unique on (day, child) like EventAttendance —
+// this is the "before" to that table's "after".
+//
+// The expected head count is derived from this, and it is what the kitchen
+// cooks to and what the staffing alert reads (item 4). The derivation lives in
+// src/lib/parents.ts, along with the rule that matters: silence means coming.
+model ExpectedAttendance {
+  id            String      @id @default(cuid())
+  eventDayId    String
+  eventDay      EventDay    @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  coming Boolean
+
+  // The parent's own words, usually the one-off pickup change ("היום סבתא
+  // אוספת"). It lives here and NOT on Dismissal.note, which is where the
+  // original spec put it, for two reasons that only showed up against the
+  // code: a Dismissal row existing at all is what the end-of-day screen reads
+  // as "this child has gone", so a parent's morning message would mark a
+  // six-year-old as released before they had left; and writing it there would
+  // walk straight past the rule (item 2) that a one-off change needs an adult.
+  //
+  // So the message lands here, the dismissal screen shows it as something a
+  // parent said, and the adult who signs the child out is the one who turns it
+  // into a Dismissal — through the existing gate, unchanged.
+  note String?
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([eventDayId, participantId])
+  @@index([eventDayId])
+  @@index([participantId])
 }

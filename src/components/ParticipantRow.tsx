@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Participant } from "./RosterManager";
 import PickupList from "./PickupList";
+import ParentLinks from "./ParentLinks";
 
 // One child in the master list. Collapsed it shows name and grade; expanded it
 // shows the contact details, with the phone as a tel: link — on a trip the
@@ -14,6 +15,7 @@ export default function ParticipantRow({
   canEdit = true,
   canSeeContacts = true,
   canAuthorizePickup = false,
+  canManageParentLinks = false,
   duplicateOf,
   onUpdate,
   onDelete,
@@ -28,6 +30,8 @@ export default function ParticipantRow({
   canSeeContacts?: boolean;
   /** dismissal:authorize — who may collect this child is an adult's decision. */
   canAuthorizePickup?: boolean;
+  /** parent:link — issuing a link that writes with no sign-in behind it. */
+  canManageParentLinks?: boolean;
   /** The other child sharing this name, if there is one. */
   duplicateOf?: Participant;
   onUpdate: (id: string, patch: Partial<Participant>) => void;
@@ -185,6 +189,12 @@ export default function ParticipantRow({
           {canAuthorizePickup && (
             <div className="sm:col-span-3">
               <PickupList participantId={p.id} participantName={p.name} />
+            </div>
+          )}
+
+          {canManageParentLinks && (
+            <div className="sm:col-span-3">
+              <ParentLinks participantId={p.id} participantName={p.name} />
             </div>
           )}
         </div>

@@ -65,6 +65,29 @@ export default async function EventPage({
 
   if (!event) notFound();
 
+  // What the parents said, per day (item 5). Grouped in the database rather
+  // than fetched row by row: a year of Tuesdays and Fridays times fifty
+  // children is thousands of rows for two numbers per day.
+  //
+  // Scoped to children still on this event and not soft-deleted, because the
+  // answer outlives the membership: a child taken off the event must not keep
+  // lowering the number the kitchen cooks to.
+  const expectedRows = await prisma.expectedAttendance.groupBy({
+    by: ["eventDayId", "coming"],
+    where: {
+      eventDay: { eventId: event.id },
+      participant: { deletedAt: null, events: { some: { id: event.id } } },
+    },
+    _count: { _all: true },
+  });
+
+  const expectedByDay: Record<string, { coming: number; notComing: number }> = {};
+  for (const row of expectedRows) {
+    const bucket = (expectedByDay[row.eventDayId] ??= { coming: 0, notComing: 0 });
+    if (row.coming) bucket.coming += row._count._all;
+    else bucket.notComing += row._count._all;
+  }
+
   const slotsByDay: Record<string, Slot[]> = {};
   for (const d of event.days) {
     slotsByDay[d.id] = d.activitySlots.map((s) => ({
@@ -110,6 +133,7 @@ export default async function EventPage({
       description: d.description,
       startTime: d.startTime,
       endTime: d.endTime,
+      expected: expectedByDay[d.id] ?? { coming: 0, notComing: 0 },
     })),
   };
 
