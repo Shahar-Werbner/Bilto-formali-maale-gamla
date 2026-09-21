@@ -4,12 +4,16 @@ import { requireAdmin, requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { formatDateOnly, parseDateOnly } from "@/lib/attendance";
 import { generateEventDays, isEventKind, type GeneratedDay } from "@/lib/events";
-import { parseScheduleInput, validateRange } from "@/lib/event-input";
+import {
+  parseMaxChildrenPerStaff,
+  parseScheduleInput,
+  validateRange,
+} from "@/lib/event-input";
 
 // PATCH /api/events/:id — rename an event, change its date range, or change
 // its schedule (camp hours, or the weekday pattern of a recurring event).
 // Body: { name?, startDate?, endDate?, kind?, includeFriday?, includeSaturday?,
-//         defaultStartTime?, defaultEndTime?, weekdays? }
+//         defaultStartTime?, defaultEndTime?, weekdays?, maxChildrenPerStaff? }
 //
 // Changing the schedule re-generates the event's days additively: missing days
 // are created, and days that fall outside the new pattern are removed only when
@@ -90,6 +94,17 @@ export async function PATCH(
       return NextResponse.json({ error: schedule.error }, { status: 400 });
     }
 
+    const maxChildrenPerStaff = parseMaxChildrenPerStaff(
+      body?.maxChildrenPerStaff,
+      event.maxChildrenPerStaff,
+    );
+    if (!maxChildrenPerStaff.ok) {
+      return NextResponse.json(
+        { error: maxChildrenPerStaff.error },
+        { status: 400 },
+      );
+    }
+
     const wanted = generateEventDays({
       startDate: startStr,
       endDate: endStr,
@@ -147,6 +162,7 @@ export async function PATCH(
           includeSaturday: schedule.value.includeSaturday,
           defaultStartTime: schedule.value.defaultStartTime,
           defaultEndTime: schedule.value.defaultEndTime,
+          maxChildrenPerStaff: maxChildrenPerStaff.value,
         },
       }),
       // The weekday template is small and fully replaced, so wiping and

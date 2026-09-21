@@ -18,7 +18,8 @@ export const ROLE_LABEL: Record<Role, string> = {
 export const ROLE_HINT: Record<Role, string> = {
   admin: "הכול, כולל מחיקות, שחזור ושינוי תפקידים",
   staff: "הכול חוץ ממחיקות ושינוי תפקידים",
-  youth: "סימון נוכחות, צפייה ברשימה וברשימת הלוז. בלי פרטי קשר ובלי עריכת הרשימה",
+  youth:
+    "סימון נוכחות, צפייה ברשימה, ותכנון פעילות ללוז שבוגר/ת מאשר/ת. בלי פרטי קשר ובלי עריכת הרשימה",
 };
 
 // ── Capabilities ────────────────────────────────────────────────────────────
@@ -48,9 +49,18 @@ export const CAPABILITIES = [
   "event:edit", // create an event, change its range/schedule, manage its children
   "event:delete",
 
-  // The day's schedule (לוז).
+  // The day's schedule (לוז) and the approval loop around it.
+  //
+  // Three capabilities, not one, because planning and signing off are two
+  // different acts here: a youth counselor plans the activity they run, and an
+  // adult is accountable for what the day actually does. `schedule:propose`
+  // writes a slot as "pending"; `schedule:edit` writes one straight into the
+  // live day (its approval is implied by the act); `schedule:approve` is what
+  // turns somebody else's proposal into part of the day.
   "schedule:view",
+  "schedule:propose",
   "schedule:edit",
+  "schedule:approve",
 
   // Going home. Three capabilities, not one, because the interesting line is
   // inside the act itself: recording that a child left with the person on
@@ -89,7 +99,9 @@ const STAFF: Capability[] = [
   "event:view",
   "event:edit",
   "schedule:view",
+  "schedule:propose",
   "schedule:edit",
+  "schedule:approve",
   "dismissal:view",
   "dismissal:mark",
   "dismissal:authorize",
@@ -110,20 +122,21 @@ const STAFF: Capability[] = [
 //                     on their personal phone. The adult on duty has them.
 //   roster:edit / roster:delete / event:edit — they mark the list, they do not
 //                     shape it. Adding a child to an event is shaping it.
-//   schedule:edit   — NOT because they should not plan. They should: planning
-//                     the activity they are assigned to is the job. But the
-//                     plan has to be approved by an adult, and there is nowhere
-//                     to record "awaiting approval" yet (ActivitySlot has no
-//                     status field, and prisma/ is held elsewhere). Letting
-//                     them write straight into the live schedule would be the
-//                     opposite of the rule, so until the approval loop exists
-//                     this stays read-only. It is a temporary floor, not the
-//                     intended ceiling.
+//   schedule:edit   — NOT because they should not plan. They should, and now
+//                     they can: `schedule:propose` writes their plan into the
+//                     day as "pending" and an adult signs it off. What stays
+//                     out of reach is writing straight into the live schedule,
+//                     and approving anything — including their own proposal.
+//   schedule:approve — approving your own plan is the loop with nothing in it.
 const YOUTH: Capability[] = [
   "attendance:mark",
   "roster:view",
   "event:view",
   "schedule:view",
+  // Planning the activity they run, as a proposal an adult approves. The
+  // temporary read-only floor stage A left behind — there was nowhere to hold
+  // "waiting" then — is lifted now that ActivitySlot.status exists.
+  "schedule:propose",
   // Signing children out is the same daily job as signing them in, and it is
   // the youth counselor who is standing at the gate when a parent arrives.
   // What they do not get is dismissal:authorize — deciding who may collect a

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { EventKind, WeekdayTemplate } from "@/lib/events";
+import { DEFAULT_MAX_CHILDREN_PER_STAFF } from "@/lib/shifts";
 import ScheduleFields, {
   toRequestBody,
   validateSchedule,
@@ -20,6 +21,8 @@ export type EventSettingsData = {
   includeSaturday: boolean;
   defaultStartTime: string | null;
   defaultEndTime: string | null;
+  /** Item 4: children per counselor before the day is flagged short-staffed. */
+  maxChildrenPerStaff: number | null;
   weekdays: WeekdayTemplate[];
 };
 
@@ -50,6 +53,9 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
   const [schedule, setSchedule] = useState<ScheduleState>(() =>
     scheduleOf(event),
   );
+  const [maxChildren, setMaxChildren] = useState(
+    event.maxChildrenPerStaff?.toString() ?? "",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -76,6 +82,7 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
           name: name.trim(),
           startDate,
           endDate,
+          maxChildrenPerStaff: maxChildren.trim() === "" ? null : Number(maxChildren),
           ...toRequestBody(schedule),
         }),
       });
@@ -138,6 +145,24 @@ export default function EventSettings({ event }: { event: EventSettingsData }) {
               />
             </label>
           </div>
+
+          <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+            כמה ילדים למדריך/ה לכל היותר
+            <input
+              type="number"
+              min={1}
+              max={50}
+              inputMode="numeric"
+              value={maxChildren}
+              onChange={(e) => setMaxChildren(e.target.value)}
+              placeholder={`ברירת מחדל: ${DEFAULT_MAX_CHILDREN_PER_STAFF}`}
+              className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-base"
+            />
+            <span className="text-xs font-normal text-slate-400">
+              מעל זה, מסך היום מתריע שחסרים מדריכים. ריק = ברירת המחדל
+              ({DEFAULT_MAX_CHILDREN_PER_STAFF}).
+            </span>
+          </label>
 
           <ScheduleFields
             state={schedule}

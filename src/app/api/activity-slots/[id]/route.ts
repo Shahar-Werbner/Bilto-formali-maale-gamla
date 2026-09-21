@@ -1,19 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/lib/api-auth";
+import { requireCapability, sessionCan } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { liveGroup, liveActivitySlot, slotNotFound } from "@/lib/event-scope";
+import { canChangeSlot, statusAfterEdit } from "@/lib/schedule";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // PATCH /api/activity-slots/:id — update slot fields.
 // Body may include: startTime, endTime, title, location, groupId, notes.
 // Empty string clears an optional field; groupId "" → whole event.
+//
+// Open to anyone who may propose, but only for a slot that is not part of the
+// day yet — see canChangeSlot in src/lib/schedule.ts. An approved slot answers
+// 403 to a proposer, so a youth counselor can fix their own plan and cannot
+// rewrite the session.
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireCapability("schedule:edit");
+  const { response } = await requireCapability("schedule:propose");
   if (response) return response;
 
   try {
@@ -76,13 +82,27 @@ export async function PATCH(
     // event before writing to it.
     const owned = await prisma.activitySlot.findFirst({
       where: liveActivitySlot(params.id),
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!owned) return slotNotFound();
 
+    const canEdit = await sessionCan("schedule:edit");
+    if (!canChangeSlot({ status: owned.status, canEdit, canPropose: true })) {
+      return NextResponse.json(
+        { error: "הפעילות כבר אושרה — שינוי שלה הוא באחריות בוגר/ת" },
+        { status: 403 },
+      );
+    }
+
     const slot = await prisma.activitySlot.update({
       where: { id: params.id },
-      data,
+      data: {
+        ...data,
+        // A corrected proposal goes back into the queue. Without this a slot
+        // sent back for a fix would stay in "הוחזר לתיקון" after being fixed,
+        // waiting for a re-submit button that does not exist.
+        status: statusAfterEdit({ status: owned.status, canEdit }),
+      },
       include: { group: { select: { id: true, name: true } } },
     });
     return NextResponse.json(slot);
@@ -91,15 +111,30 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/activity-slots/:id
+// DELETE /api/activity-slots/:id — same rule as PATCH: a proposer may withdraw
+// a plan that is not part of the day yet, and nothing else.
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  const { response } = await requireCapability("schedule:edit");
+  const { response } = await requireCapability("schedule:propose");
   if (response) return response;
 
   try {
+    const owned = await prisma.activitySlot.findFirst({
+      where: liveActivitySlot(params.id),
+      select: { id: true, status: true },
+    });
+    if (!owned) return slotNotFound();
+
+    const canEdit = await sessionCan("schedule:edit");
+    if (!canChangeSlot({ status: owned.status, canEdit, canPropose: true })) {
+      return NextResponse.json(
+        { error: "הפעילות כבר אושרה — מחיקה שלה היא באחריות בוגר/ת" },
+        { status: 403 },
+      );
+    }
+
     const deleted = await prisma.activitySlot.deleteMany({
       where: liveActivitySlot(params.id),
     });

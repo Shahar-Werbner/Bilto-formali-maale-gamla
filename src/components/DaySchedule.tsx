@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import {
+  SLOT_STATUS_LABEL,
+  pendingCount,
+  slotStatusOf,
+  type SlotStatus,
+} from "@/lib/schedule";
 
 type Group = { id: string; name: string };
 export type Slot = {
@@ -13,6 +19,8 @@ export type Slot = {
   groupName: string | null;
   notes: string | null;
   order: number;
+  /** "approved" | "pending" | "draft" — the approval loop, item 4. */
+  status?: string;
 };
 
 type Draft = {
@@ -139,14 +147,20 @@ export default function DaySchedule({
   initialSlots,
   groups,
   canEdit = true,
+  canPropose = false,
+  canApprove = false,
 }: {
   eventDayId: string;
   initialSlots: Slot[];
   groups: Group[];
-  /** schedule:edit — without it the day's plan is read-only. A youth counselor
-   *  sees the schedule and works from it; changing it needs an adult, and the
-   *  approval loop that would let them propose changes has no column yet. */
+  /** schedule:edit — writes straight into the day. */
   canEdit?: boolean;
+  /** schedule:propose — a youth counselor plans the activity they run; the
+   *  slot lands as "ממתין לאישור" and an adult signs it off. They may also fix
+   *  a slot that is not approved yet, and nothing else. */
+  canPropose?: boolean;
+  /** schedule:approve — the adult end of that loop. */
+  canApprove?: boolean;
 }) {
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -215,6 +229,7 @@ export default function DaySchedule({
           groupId: string | null;
           notes: string | null;
           order: number;
+          status: string;
           group: { id: string; name: string } | null;
         }) => ({
           id: s.id,
@@ -226,6 +241,7 @@ export default function DaySchedule({
           groupName: s.group?.name ?? null,
           notes: s.notes,
           order: s.order,
+          status: s.status,
         }),
       );
       setSlots((cur) => [...cur, ...added]);
@@ -288,6 +304,24 @@ export default function DaySchedule({
     }
   }
 
+  async function decide(id: string, approve: boolean) {
+    setError(null);
+    const prev = slots;
+    try {
+      const res = await fetch(`/api/activity-slots/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approve }),
+      });
+      if (!res.ok) throw new Error();
+      const slot: Slot = await res.json();
+      setSlots((s) => s.map((x) => (x.id === id ? { ...x, ...slot } : x)));
+    } catch {
+      setSlots(prev);
+      setError(approve ? "האישור נכשל" : "ההחזרה לתיקון נכשלה");
+    }
+  }
+
   async function move(index: number, dir: -1 | 1) {
     const j = index + dir;
     if (j < 0 || j >= slots.length) return;
@@ -311,9 +345,28 @@ export default function DaySchedule({
     }
   }
 
+  // Reordering is a change to the live day, so it stays with schedule:edit.
+  const canWrite = canEdit || canPropose;
+  // A proposer may fix what is not part of the day yet — their own plan, or one
+  // sent back for a fix — and may not touch an approved slot. Same rule as the
+  // route enforces (src/lib/schedule.ts); the button just stops offering what
+  // would come back 403.
+  const mayChange = (slot: Slot) =>
+    canEdit || (canPropose && slotStatusOf(slot.status) !== "approved");
+  const waiting = pendingCount(slots);
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h2 className="mb-3 text-base font-bold text-slate-900">לוז היום</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-bold text-slate-900">לוז היום</h2>
+        {waiting > 0 && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+            {canApprove
+              ? `${waiting} ממתינות לאישור שלך`
+              : `${waiting} ממתינות לאישור`}
+          </span>
+        )}
+      </div>
 
       {error && (
         <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -329,11 +382,11 @@ export default function DaySchedule({
 
       <ul className="flex flex-col gap-2">
         {slots.map((slot, i) =>
-          canEdit && editingId === slot.id ? (
+          mayChange(slot) && editingId === slot.id ? (
             <li key={slot.id}>
               <SlotForm
                 groups={groups}
-                submitLabel="שמירה"
+                submitLabel={canEdit ? "שמירה" : "שליחה לאישור"}
                 onCancel={() => setEditingId(null)}
                 onSubmit={(d) => saveSlot(slot.id, d)}
                 initial={{
@@ -349,7 +402,11 @@ export default function DaySchedule({
           ) : (
             <li
               key={slot.id}
-              className="flex items-start gap-2 rounded-xl border border-slate-200 p-3"
+              className={`flex items-start gap-2 rounded-xl border p-3 ${
+                slotStatusOf(slot.status) === "approved"
+                  ? "border-slate-200"
+                  : "border-amber-300 bg-amber-50/50"
+              }`}
             >
               {canEdit && (
               <div className="flex flex-col pt-0.5">
@@ -383,6 +440,7 @@ export default function DaySchedule({
                       {slot.groupName}
                     </span>
                   )}
+                  <StatusBadge status={slotStatusOf(slot.status)} />
                 </div>
                 {(slot.location || slot.notes) && (
                   <div className="mt-0.5 text-sm text-slate-500">
@@ -392,33 +450,53 @@ export default function DaySchedule({
                   </div>
                 )}
               </div>
-              {canEdit && (
-              <div className="flex shrink-0 gap-1">
-                <button
-                  onClick={() => setEditingId(slot.id)}
-                  className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
-                >
-                  עריכה
-                </button>
-                <button
-                  onClick={() => deleteSlot(slot.id)}
-                  className="rounded-lg px-2 py-1 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
-                >
-                  מחיקה
-                </button>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                {canApprove && slotStatusOf(slot.status) !== "approved" && (
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => decide(slot.id, true)}
+                      className="rounded-lg bg-present/10 px-2 py-1 text-sm font-semibold text-present hover:bg-present/20"
+                    >
+                      אישור
+                    </button>
+                    {slotStatusOf(slot.status) === "pending" && (
+                      <button
+                        onClick={() => decide(slot.id, false)}
+                        className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+                      >
+                        החזרה לתיקון
+                      </button>
+                    )}
+                  </div>
+                )}
+                {mayChange(slot) && (
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setEditingId(slot.id)}
+                      className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+                    >
+                      עריכה
+                    </button>
+                    <button
+                      onClick={() => deleteSlot(slot.id)}
+                      className="rounded-lg px-2 py-1 text-sm text-slate-400 hover:bg-red-50 hover:text-absent"
+                    >
+                      מחיקה
+                    </button>
+                  </div>
+                )}
               </div>
-              )}
             </li>
           ),
         )}
       </ul>
 
       <div className="mt-3">
-        {!canEdit ? null : adding ? (
+        {!canWrite ? null : adding ? (
           <SlotForm
             groups={groups}
             initial={emptyDraft}
-            submitLabel="הוספה"
+            submitLabel={canEdit ? "הוספה" : "שליחה לאישור"}
             onCancel={() => setAdding(false)}
             onSubmit={addSlot}
           />
@@ -427,8 +505,17 @@ export default function DaySchedule({
             onClick={() => setAdding(true)}
             className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
           >
-            + הוספת פעילות ללוז
+            {canEdit ? "+ הוספת פעילות ללוז" : "+ הצעת פעילות ללוז"}
           </button>
+        )}
+        {/* A youth counselor is told what the button does before they press
+            it. The alternative the role had until now was a button that came
+            back 403, which reads as "the app is broken", not as "an adult has
+            to approve this". */}
+        {canWrite && !canEdit && (
+          <p className="mt-1 text-xs text-slate-400">
+            הפעילות תישלח לאישור של בוגר/ת ותיכנס ללוז אחרי שתאושר.
+          </p>
         )}
       </div>
 
@@ -492,5 +579,23 @@ export default function DaySchedule({
         ) : null}
       </div>
     </section>
+  );
+}
+
+// An approved slot is the normal state and carries no badge — a screen where
+// every line is decorated says nothing. Only what is not yet part of the day
+// is marked.
+function StatusBadge({ status }: { status: SlotStatus }) {
+  if (status === "approved") return null;
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+        status === "pending"
+          ? "bg-amber-200 text-amber-900"
+          : "bg-slate-200 text-slate-600"
+      }`}
+    >
+      {SLOT_STATUS_LABEL[status]}
+    </span>
   );
 }
