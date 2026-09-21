@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
 import { safeSheetName, xlsxHeaders } from "@/lib/xlsx";
+import { formatTimeRange } from "@/lib/events";
 import {
   formatDateOnly,
   sortByGrade,
@@ -71,21 +72,30 @@ export async function GET(
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet(safeSheetName(event.name, "אירוע"), {
-      views: [{ rightToLeft: true, state: "frozen", xSplit: 2, ySplit: 1 }],
+      views: [{ rightToLeft: true, state: "frozen", xSplit: 2, ySplit: 2 }],
     });
 
     // Columns: name, grade, one per day, then 3 summary columns.
+    //
+    // Two header rows, not one: the second carries the hours that session ran
+    // (item 1). Whoever receives this file was reading a grid of days with no
+    // idea whether a column is a three-hour Tuesday or a four-hour Friday —
+    // and those are the same hours the staff report is derived from, so a
+    // blank here is also a day nobody is being paid for.
     ws.columns = [
-      { header: "שם", key: "name", width: 22 },
-      { header: "כיתה", key: "grade", width: 8 },
+      { header: ["שם", ""], key: "name", width: 22 },
+      { header: ["כיתה", ""], key: "grade", width: 8 },
       ...event.days.map((d) => ({
-        header: shortDate(formatDateOnly(d.date)),
+        header: [
+          shortDate(formatDateOnly(d.date)),
+          formatTimeRange(d.startTime, d.endTime),
+        ],
         key: d.id,
         width: 11,
       })),
-      { header: "נוכח", key: "sum_present", width: 7 },
-      { header: "איחור", key: "sum_late", width: 7 },
-      { header: "נעדר", key: "sum_absent", width: 7 },
+      { header: ["נוכח", ""], key: "sum_present", width: 7 },
+      { header: ["איחור", ""], key: "sum_late", width: 7 },
+      { header: ["נעדר", ""], key: "sum_absent", width: 7 },
     ];
 
     // Header styling.
@@ -98,7 +108,21 @@ export async function GET(
         pattern: "solid",
         fgColor: { argb: "FFEFEFEF" },
       };
+    });
+
+    const hoursRow = ws.getRow(2);
+    hoursRow.font = { size: 9, color: { argb: "FF888888" } };
+    hoursRow.alignment = { horizontal: "center", vertical: "middle" };
+    // A time range is written left-to-right inside a right-to-left sheet, so
+    // it is tagged as such — otherwise "16:00–19:00" comes out reversed.
+    hoursRow.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFEFEFEF" },
+      };
       cell.border = { bottom: { style: "thin", color: { argb: "FFCCCCCC" } } };
+      cell.alignment = { ...cell.alignment, readingOrder: "ltr" };
     });
 
     for (const p of sortByGrade(event.participants)) {
