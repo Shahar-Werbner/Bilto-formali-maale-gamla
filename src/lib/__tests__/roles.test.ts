@@ -61,6 +61,10 @@ describe("capabilities", () => {
     ["group:edit", "changing the groups"],
     ["group:delete", "deleting a group, and with it what past sessions refer to"],
     ["users:manage", "handing out roles"],
+    [
+      "dismissal:authorize",
+      "deciding who may take a six-year-old home, or waving through someone not on that list",
+    ],
     ["shift:assign", "rostering staff"],
     ["shift:view:all", "other people's hours"],
   ] as const)("denies youth %s — %s", (capability, _why) => {
@@ -74,6 +78,11 @@ describe("capabilities", () => {
     ["event:view", "seeing the sessions"],
     ["schedule:view", "reading the day's plan they work from"],
     ["shift:view:own", "their own hours"],
+    ["dismissal:view", "who is still waiting at the end of the day"],
+    [
+      "dismissal:mark",
+      "signing a child out to the person on their list — the other half of the daily job",
+    ],
   ] as const)("allows youth %s — %s", (capability, _why) => {
     expect(can("youth", capability)).toBe(true);
   });

@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
-import {
-  normalizeName,
-  normalizePhone,
-  splitByExistingKeys,
-} from "@/lib/participants";
+import { splitByExistingKeys } from "@/lib/participants";
+import { splitAuthorizationsForMerge } from "@/lib/dismissal";
 
 // POST /api/participants/merge — fold one child's record into another.
 // Body: { keepId, mergeId }
@@ -115,18 +112,13 @@ export async function POST(request: Request) {
 
     // Pickup authorizations carry no unique constraint — the duplicate here is
     // the same person entered on both records, and moving them across would
-    // leave the survivor listing "אמא" twice. Matched on the normalised name
-    // plus phone, the same way the roster import decides two spellings are one
-    // child. Anything that does not match is a different person and must move:
-    // dropping it would quietly narrow who is allowed to collect the child.
-    const authKey = (a: { name: string; phone: string | null }) =>
-      `${normalizeName(a.name)}|${a.phone ? normalizePhone(a.phone) ?? "" : ""}`;
-    const authorizations = splitByExistingKeys(
+    // leave the survivor listing "אמא" twice. The matching rule lives in
+    // src/lib/dismissal.ts with the reasoning and its tests; what matters here
+    // is its bias: anything that might be a different person moves, because
+    // narrowing who may collect a child is the dangerous direction.
+    const authorizations = splitAuthorizationsForMerge(
       merge.pickupAuth,
-      // Wrapped rather than passed directly so the row type is inferred from
-      // the rows (which carry `id`) and not from authKey's parameter.
-      (a) => authKey(a),
-      keepAuthorizations.map(authKey),
+      keepAuthorizations,
     );
 
     // Fill in anything the surviving record is missing.

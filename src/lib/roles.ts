@@ -52,6 +52,14 @@ export const CAPABILITIES = [
   "schedule:view",
   "schedule:edit",
 
+  // Going home. Three capabilities, not one, because the interesting line is
+  // inside the act itself: recording that a child left with the person on
+  // their list is the routine end of the day, while deciding WHO is on that
+  // list, or departing from it, is not.
+  "dismissal:view", // the end-of-day screen: who is waiting, who has gone
+  "dismissal:mark", // record a dismissal that matches the standing list
+  "dismissal:authorize", // edit the pickup list, and record anything off it
+
   // Groups. Delete is separate from edit on purpose: a group is no longer only
   // a reusable label, it is what a past session's split refers to, so removing
   // one hides part of the record. That puts it with deleting a child or an
@@ -82,6 +90,9 @@ const STAFF: Capability[] = [
   "event:edit",
   "schedule:view",
   "schedule:edit",
+  "dismissal:view",
+  "dismissal:mark",
+  "dismissal:authorize",
   "group:view",
   "group:edit",
   "shift:view:own",
@@ -113,6 +124,12 @@ const YOUTH: Capability[] = [
   "roster:view",
   "event:view",
   "schedule:view",
+  // Signing children out is the same daily job as signing them in, and it is
+  // the youth counselor who is standing at the gate when a parent arrives.
+  // What they do not get is dismissal:authorize — deciding who may collect a
+  // child, or waving through someone who is not on that list.
+  "dismissal:view",
+  "dismissal:mark",
   "group:view",
   "shift:view:own",
 ];
