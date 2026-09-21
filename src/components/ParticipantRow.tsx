@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Participant } from "./RosterManager";
+import PickupList from "./PickupList";
 
 // One child in the master list. Collapsed it shows name and grade; expanded it
 // shows the contact details, with the phone as a tel: link — on a trip the
@@ -12,6 +13,7 @@ export default function ParticipantRow({
   isAdmin,
   canEdit = true,
   canSeeContacts = true,
+  canAuthorizePickup = false,
   duplicateOf,
   onUpdate,
   onDelete,
@@ -24,6 +26,8 @@ export default function ParticipantRow({
   canEdit?: boolean;
   /** roster:contacts — without it there are no contacts on the row to show. */
   canSeeContacts?: boolean;
+  /** dismissal:authorize — who may collect this child is an adult's decision. */
+  canAuthorizePickup?: boolean;
   /** The other child sharing this name, if there is one. */
   duplicateOf?: Participant;
   onUpdate: (id: string, patch: Partial<Participant>) => void;
@@ -177,6 +181,12 @@ export default function ParticipantRow({
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
             />
           </label>
+
+          {canAuthorizePickup && (
+            <div className="sm:col-span-3">
+              <PickupList participantId={p.id} participantName={p.name} />
+            </div>
+          )}
         </div>
       )}
     </li>

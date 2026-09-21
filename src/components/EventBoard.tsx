@@ -12,6 +12,7 @@ import {
 import { formatHebrewDate, formatTimeRange, hoursBetween } from "@/lib/events";
 import type { Capability } from "@/lib/roles";
 import DaySchedule, { type Slot } from "./DaySchedule";
+import DismissalBoard from "./DismissalBoard";
 import EventSettings, { type EventSettingsData } from "./EventSettings";
 import SaveStatus from "./SaveStatus";
 import {
@@ -83,6 +84,7 @@ export default function EventBoard({
   // controls refuse them anyway.
   const canEditEvent = capabilities.includes("event:edit");
   const canEditSchedule = capabilities.includes("schedule:edit");
+  const canSeeDismissal = capabilities.includes("dismissal:view");
   const [selectedDayId, setSelectedDayId] = useState<string>(() =>
     defaultDayId(event.days),
   );
@@ -690,6 +692,17 @@ export default function EventBoard({
               </ul>
             )}
           </section>
+
+          {/* Signing out, below signing in: the same list, at the other end of
+              the day. Remounted per day so a switch cannot leave one day's
+              dismissals on screen under another day's heading. */}
+          {canSeeDismissal && (
+            <DismissalBoard
+              key={selectedDayId}
+              eventDayId={selectedDayId}
+              capabilities={capabilities}
+            />
+          )}
         </>
       )}
     </div>
