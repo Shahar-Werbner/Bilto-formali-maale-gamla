@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import AppHeader from "@/components/AppHeader";
+import { sessionCapabilities } from "@/lib/api-auth";
 import { sortByGrade, STATUSES, type Status } from "@/lib/attendance";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,12 @@ function rateColor(rate: number | null): string {
 
 export default async function ReportsPage() {
   const session = await auth();
+
+  // The staff-hours report is a second report behind the same nav item rather
+  // than a third tab: "דוחות" is one destination on a phone, and the two
+  // answer different questions for different people.
+  const capabilities = await sessionCapabilities();
+  const canSeeHours = capabilities.includes("shift:view:own");
 
   const [participants, marks] = await Promise.all([
     prisma.participant.findMany({
@@ -90,7 +98,17 @@ export default async function ReportsPage() {
         isAdmin={session?.user?.role === "admin"}
       />
       <main className="mx-auto max-w-3xl px-4 py-4">
-        <h1 className="mb-1 text-xl font-bold text-slate-900">דוח לפי ילד/ה</h1>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <h1 className="text-xl font-bold text-slate-900">דוח לפי ילד/ה</h1>
+          {canSeeHours && (
+            <Link
+              href="/reports/hours"
+              className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+            >
+              שעות צוות
+            </Link>
+          )}
+        </div>
         <p className="mb-4 text-sm text-slate-500">
           סיכום כל האירועים. אחוז ההגעה מחושב מתוך כל ימי האירועים שהילד/ה
           רשומ/ה אליהם — כולל ימים שלא סומנו.
