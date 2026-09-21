@@ -13,6 +13,7 @@ import { formatHebrewDate, formatTimeRange, hoursBetween } from "@/lib/events";
 import type { Capability } from "@/lib/roles";
 import DaySchedule, { type Slot } from "./DaySchedule";
 import DayGroupsBoard from "./DayGroupsBoard";
+import ShiftBoard from "./ShiftBoard";
 import DismissalBoard from "./DismissalBoard";
 import EventSettings, { type EventSettingsData } from "./EventSettings";
 import SaveStatus from "./SaveStatus";
@@ -85,6 +86,9 @@ export default function EventBoard({
   // controls refuse them anyway.
   const canEditEvent = capabilities.includes("event:edit");
   const canEditSchedule = capabilities.includes("schedule:edit");
+  const canProposeSchedule = capabilities.includes("schedule:propose");
+  const canApproveSchedule = capabilities.includes("schedule:approve");
+  const canSeeShifts = capabilities.includes("shift:view:own");
   const canSeeDismissal = capabilities.includes("dismissal:view");
   const canSeeGroups = capabilities.includes("group:view");
   const [selectedDayId, setSelectedDayId] = useState<string>(() =>
@@ -585,7 +589,21 @@ export default function EventBoard({
             initialSlots={slotsByDay[selectedDayId] ?? []}
             groups={groups}
             canEdit={canEditSchedule}
+            canPropose={canProposeSchedule}
+            canApprove={canApproveSchedule}
           />
+
+          {/* Who is working today, and whether that is enough people. Above
+              the children's split because it is the earlier question: you
+              cannot split 40 children across staff you do not have. Remounted
+              per day, like everything else here. */}
+          {canSeeShifts && (
+            <ShiftBoard
+              key={`shifts-${selectedDayId}`}
+              eventDayId={selectedDayId}
+              capabilities={capabilities}
+            />
+          )}
 
           {/* Who is in which group today. Above attendance because it is the
               first thing done with the children once they arrive, and below

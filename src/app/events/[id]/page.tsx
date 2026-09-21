@@ -77,6 +77,7 @@ export default async function EventPage({
       groupName: s.group?.name ?? null,
       notes: s.notes,
       order: s.order,
+      status: s.status,
     }));
   }
 
@@ -90,6 +91,7 @@ export default async function EventPage({
     includeSaturday: event.includeSaturday,
     defaultStartTime: event.defaultStartTime,
     defaultEndTime: event.defaultEndTime,
+    maxChildrenPerStaff: event.maxChildrenPerStaff,
     weekdays: event.weekdays.map((w) => ({
       weekday: w.weekday,
       startTime: w.startTime,

@@ -61,6 +61,16 @@ export async function sessionCapabilities(): Promise<readonly Capability[]> {
   return capabilitiesOf(user?.role);
 }
 
+// Whether the signed-in user holds one more capability, for a route whose
+// *behaviour* depends on the answer rather than its access: the schedule
+// accepts a write from anyone who may propose, and what changes with
+// `schedule:edit` is whether the slot lands approved or waiting. Guarding such
+// a route on the narrower capability and branching on the wider one keeps one
+// route rather than two that drift apart.
+export async function sessionCan(capability: Capability): Promise<boolean> {
+  return (await sessionCapabilities()).includes(capability);
+}
+
 // Same, but also requires the admin role. Used for the operations that destroy
 // or hand out access: deleting an event or a child, restoring one, and changing
 // anyone's role. Everything else is open to any staff account.

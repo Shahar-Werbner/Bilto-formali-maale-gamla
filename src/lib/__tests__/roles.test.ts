@@ -67,6 +67,8 @@ describe("capabilities", () => {
     ],
     ["shift:assign", "rostering staff"],
     ["shift:view:all", "other people's hours"],
+    ["schedule:edit", "writing straight into the live schedule"],
+    ["schedule:approve", "signing off a plan — including their own"],
   ] as const)("denies youth %s — %s", (capability, _why) => {
     expect(can("youth", capability)).toBe(false);
   });
@@ -77,6 +79,10 @@ describe("capabilities", () => {
     ["roster:view", "seeing the list they are marking"],
     ["event:view", "seeing the sessions"],
     ["schedule:view", "reading the day's plan they work from"],
+    [
+      "schedule:propose",
+      "planning the activity they run — it lands as pending and an adult approves it",
+    ],
     ["shift:view:own", "their own hours"],
     ["dismissal:view", "who is still waiting at the end of the day"],
     [

@@ -90,6 +90,31 @@ export function parseScheduleInput(
   };
 }
 
+// The staffing threshold (item 4): how many children one counselor may cover
+// before the day's screen calls the session short-staffed.
+//
+// undefined → keep what is stored; null or "" → clear it, which falls back to
+// the app-wide default. The upper bound is not pedantry: a threshold of 400
+// silently switches the alert off, and an alert that never fires looks exactly
+// like a session that is never short.
+export const MAX_CHILDREN_PER_STAFF_LIMIT = 50;
+
+export function parseMaxChildrenPerStaff(
+  value: unknown,
+  fallback: number | null,
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  if (value === undefined) return { ok: true, value: fallback };
+  if (value === null || value === "") return { ok: true, value: null };
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_CHILDREN_PER_STAFF_LIMIT) {
+    return {
+      ok: false,
+      error: `יחס מדריך/ילדים חייב להיות מספר שלם בין 1 ל-${MAX_CHILDREN_PER_STAFF_LIMIT}`,
+    };
+  }
+  return { ok: true, value: n };
+}
+
 // Rejects a range that is invalid, inverted, or long enough that generating
 // from it would write thousands of rows — almost always a mistyped year.
 export function validateRange(
