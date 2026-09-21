@@ -12,6 +12,7 @@ import {
 import { formatHebrewDate, formatTimeRange, hoursBetween } from "@/lib/events";
 import type { Capability } from "@/lib/roles";
 import DaySchedule, { type Slot } from "./DaySchedule";
+import DayGroupsBoard from "./DayGroupsBoard";
 import DismissalBoard from "./DismissalBoard";
 import EventSettings, { type EventSettingsData } from "./EventSettings";
 import SaveStatus from "./SaveStatus";
@@ -85,6 +86,7 @@ export default function EventBoard({
   const canEditEvent = capabilities.includes("event:edit");
   const canEditSchedule = capabilities.includes("schedule:edit");
   const canSeeDismissal = capabilities.includes("dismissal:view");
+  const canSeeGroups = capabilities.includes("group:view");
   const [selectedDayId, setSelectedDayId] = useState<string>(() =>
     defaultDayId(event.days),
   );
@@ -571,13 +573,31 @@ export default function EventBoard({
           </div>
 
           {/* Day schedule */}
+          {/* Keys are prefixed per component, not the bare day id. Three
+              siblings keyed `selectedDayId` are three children with the SAME
+              key, which React cannot reconcile: switching days left the
+              previous day's schedule on screen above the new one, still wired
+              to the old day. Any further per-day section needs its own
+              prefix. */}
           <DaySchedule
-            key={selectedDayId}
+            key={`schedule-${selectedDayId}`}
             eventDayId={selectedDayId}
             initialSlots={slotsByDay[selectedDayId] ?? []}
             groups={groups}
             canEdit={canEditSchedule}
           />
+
+          {/* Who is in which group today. Above attendance because it is the
+              first thing done with the children once they arrive, and below
+              the schedule because the schedule is what the groups rotate
+              through. Remounted per day: a split belongs to one session. */}
+          {canSeeGroups && (
+            <DayGroupsBoard
+              key={`groups-${selectedDayId}`}
+              eventDayId={selectedDayId}
+              capabilities={capabilities}
+            />
+          )}
 
           {/* Attendance */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -698,7 +718,7 @@ export default function EventBoard({
               dismissals on screen under another day's heading. */}
           {canSeeDismissal && (
             <DismissalBoard
-              key={selectedDayId}
+              key={`dismissal-${selectedDayId}`}
               eventDayId={selectedDayId}
               capabilities={capabilities}
             />
