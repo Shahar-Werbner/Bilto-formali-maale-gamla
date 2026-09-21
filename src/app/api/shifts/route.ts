@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         endTime: true,
         event: {
           select: {
+            id: true,
             maxChildrenPerStaff: true,
             // A deleted child is not coming, and must not inflate the number
             // the alert is computed from (invariant 1).
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
     let ratio = null;
     if (canViewAll) {
       const rostered = day.event._count.participants;
-      const [markedTotal, here] = await Promise.all([
+      const [markedTotal, here, notComing, answered] = await Promise.all([
         prisma.eventAttendance.count({
           where: { eventDayId, participant: { deletedAt: null } },
         }),
@@ -111,11 +112,34 @@ export async function GET(request: Request) {
             participant: { deletedAt: null },
           },
         }),
+        // What the parents said (item 5). Only the explicit "not coming"
+        // answers are counted, and only for children still on the event —
+        // silence means coming, so this can only ever lower the number, and
+        // only by a family that actually told us.
+        prisma.expectedAttendance.count({
+          where: {
+            eventDayId,
+            coming: false,
+            participant: { deletedAt: null, events: { some: { id: day.event.id } } },
+          },
+        }),
+        // Whether any family has answered at all. Without this the two cases
+        // are indistinguishable: "nobody has answered" and "everyone answered
+        // yes" both produce a count equal to the roster, and telling the team
+        // the ratio came from the parents when not one of them has replied is
+        // a number that claims to know more than it does.
+        prisma.expectedAttendance.count({
+          where: {
+            eventDayId,
+            participant: { deletedAt: null, events: { some: { id: day.event.id } } },
+          },
+        }),
       ]);
       ratio = staffing({
         rosteredChildren: rostered,
         // Only a fully marked day has a real number — see src/lib/shifts.ts.
         markedChildren: rostered > 0 && markedTotal >= rostered ? here : null,
+        expectedChildren: answered > 0 ? rostered - notComing : null,
         staffCount: rows.length,
         adultCount: rows.filter((s) => ADULT_ROLES.includes(s.user.role)).length,
         maxChildrenPerStaff: day.event.maxChildrenPerStaff,

@@ -45,12 +45,18 @@ type Fixture = {
     id: string;
     startTime: string | null;
     endTime: string | null;
-    event: { maxChildrenPerStaff: number | null; _count: { participants: number } };
+    event: {
+      id: string;
+      maxChildrenPerStaff: number | null;
+      _count: { participants: number };
+    };
   } | null;
   shifts: ShiftRow[];
   users: Array<{ id: string; name: string; role: string }>;
   /** Attendance rows for the day: [marked in total, present or late]. */
   attendance: [number, number];
+  /** Parents' answers for the day (item 5): [not coming, answered at all]. */
+  expected: [number, number];
   deleted: number;
 };
 
@@ -91,6 +97,12 @@ vi.mock("@/lib/prisma", () => ({
       count: (args: { where: { status?: unknown } }) =>
         Promise.resolve(args.where.status ? fixture.attendance[1] : fixture.attendance[0]),
     },
+    expectedAttendance: {
+      count: (args: { where: { coming?: unknown } }) =>
+        Promise.resolve(
+          args.where.coming === false ? fixture.expected[0] : fixture.expected[1],
+        ),
+    },
     user: {
       findMany: () => Promise.resolve(fixture.users),
       findUnique: (args: { where: { id: string } }) =>
@@ -128,7 +140,7 @@ beforeEach(() => {
       id: "d1",
       startTime: "16:00",
       endTime: "19:00",
-      event: { maxChildrenPerStaff: null, _count: { participants: 40 } },
+      event: { id: "e1", maxChildrenPerStaff: null, _count: { participants: 40 } },
     },
     shifts: [
       {
@@ -156,6 +168,7 @@ beforeEach(() => {
       { id: "u-free", name: "דנה", role: "youth" },
     ],
     attendance: [0, 0],
+    expected: [0, 0],
     deleted: 1,
   };
   upsert.mockClear();

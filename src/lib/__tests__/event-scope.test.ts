@@ -39,6 +39,11 @@ const SCOPED_MODELS = [
   // Group is soft-deleted for a different reason than the rest — it is part of
   // the record of a past session — but it scopes exactly the same way.
   "group",
+  // Item 5. Both hang off a child, and ExpectedAttendance also off a day, so
+  // an id for either says nothing about whether the child or the event above
+  // it still exists.
+  "expectedAttendance",
+  "parentLink",
 ];
 
 // Routes that legitimately need no scoping. Each one states why, because an
@@ -50,6 +55,8 @@ const EXEMPT: Record<string, string> = {
     "compares against every name, deleted included, so a re-import surfaces as a skip rather than silently creating a second copy (see the comment there)",
   "admin/users/[id]/route.ts": "acts on User, which has no soft delete",
   "register/route.ts": "creates a User; no event or child is resolved",
+  "parent/[token]/route.ts":
+    "it resolves nothing by id itself: the token goes through resolveParentLink() and the day through parentMayWriteDay(), both in src/lib/parent-link.ts, which filter the child's deletedAt and the event's — and a link whose child was deleted answers exactly as an unknown token does",
 };
 
 function routeFiles(dir: string, base = ""): string[] {

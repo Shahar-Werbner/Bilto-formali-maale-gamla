@@ -53,6 +53,12 @@ export async function POST(request: Request) {
           pickupAuth: { select: { id: true, name: true, phone: true } },
           dismissals: { select: { id: true, eventDayId: true } },
           dayGroups: { select: { id: true, eventDayId: true } },
+          // Item 5. The links matter for a reason the others do not: a parent
+          // is holding that URL in a WhatsApp message, and leaving it on the
+          // retiring record turns it into a link that answers "not found" for
+          // a family that did nothing wrong.
+          parentLinks: { select: { id: true } },
+          expected: { select: { id: true, eventDayId: true } },
         },
       }),
     ]);
@@ -84,20 +90,25 @@ export async function POST(request: Request) {
 
     // Dismissals and day-group assignments are unique per (day, child), same as
     // attendance, so they follow the same rule: the survivor's row stands.
-    const [keepDismissals, keepDayGroups, keepAuthorizations] = await Promise.all([
-      prisma.dismissal.findMany({
-        where: { participantId: keepId },
-        select: { eventDayId: true },
-      }),
-      prisma.dayGroupAssignment.findMany({
-        where: { participantId: keepId },
-        select: { eventDayId: true },
-      }),
-      prisma.pickupAuthorization.findMany({
-        where: { participantId: keepId },
-        select: { name: true, phone: true },
-      }),
-    ]);
+    const [keepDismissals, keepDayGroups, keepAuthorizations, keepExpected] =
+      await Promise.all([
+        prisma.dismissal.findMany({
+          where: { participantId: keepId },
+          select: { eventDayId: true },
+        }),
+        prisma.dayGroupAssignment.findMany({
+          where: { participantId: keepId },
+          select: { eventDayId: true },
+        }),
+        prisma.pickupAuthorization.findMany({
+          where: { participantId: keepId },
+          select: { name: true, phone: true },
+        }),
+        prisma.expectedAttendance.findMany({
+          where: { participantId: keepId },
+          select: { eventDayId: true },
+        }),
+      ]);
 
     const dismissals = splitByExistingKeys(
       merge.dismissals,
@@ -108,6 +119,13 @@ export async function POST(request: Request) {
       merge.dayGroups,
       (a) => a.eventDayId,
       keepDayGroups.map((a) => a.eventDayId),
+    );
+    // What the parents said is unique per (day, child) like the two above, so
+    // it follows the same rule: the survivor's answer stands.
+    const expected = splitByExistingKeys(
+      merge.expected,
+      (e) => e.eventDayId,
+      keepExpected.map((e) => e.eventDayId),
     );
 
     // Pickup authorizations carry no unique constraint — the duplicate here is
@@ -160,6 +178,20 @@ export async function POST(request: Request) {
       prisma.pickupAuthorization.deleteMany({
         where: { id: { in: authorizations.drop.map((a) => a.id) } },
       }),
+      prisma.expectedAttendance.updateMany({
+        where: { id: { in: expected.move.map((e) => e.id) } },
+        data: { participantId: keepId },
+      }),
+      prisma.expectedAttendance.deleteMany({
+        where: { id: { in: expected.drop.map((e) => e.id) } },
+      }),
+      // Every link moves, with no de-duplication: two links are two families'
+      // messages, and the survivor holding both is exactly right. A link left
+      // behind is a parent whose URL silently stops working.
+      prisma.parentLink.updateMany({
+        where: { id: { in: merge.parentLinks.map((l) => l.id) } },
+        data: { participantId: keepId },
+      }),
       prisma.participant.update({
         where: { id: keepId },
         data: {
@@ -181,6 +213,7 @@ export async function POST(request: Request) {
       // Worth surfacing separately: an admin merging two records should be able
       // to see that the people allowed to collect the child came across.
       movedAuthorizations: authorizations.move.length,
+      movedParentLinks: merge.parentLinks.length,
     });
   } catch (err) {
     return handleApiError(err);

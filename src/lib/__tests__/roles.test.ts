@@ -66,6 +66,10 @@ describe("capabilities", () => {
       "deciding who may take a six-year-old home, or waving through someone not on that list",
     ],
     ["shift:assign", "rostering staff"],
+    [
+      "parent:link",
+      "minting a link that writes into a child's record with no sign-in behind it",
+    ],
     ["shift:view:all", "other people's hours"],
     ["schedule:edit", "writing straight into the live schedule"],
     ["schedule:approve", "signing off a plan — including their own"],
@@ -136,6 +140,8 @@ const UNGUARDED: Record<string, string> = {
   "auth/[...nextauth]/route.ts": "the sign-in endpoint itself — it cannot require a session",
   "register/route.ts":
     "self-registration, guarded by the signup code, rate limiting and a timing-safe comparison instead",
+  "parent/[token]/route.ts":
+    "the parents' endpoint, and the reason item 5 has no parent accounts: the 256-bit token in the URL is the credential. It is guarded by that token, by a shape check before any query, by a rate limit on both verbs, and by a blast radius of one boolean and one note for one child on days that child is already on — see the header there",
 };
 
 function routeFiles(dir: string, base = ""): string[] {

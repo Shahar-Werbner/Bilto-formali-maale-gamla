@@ -22,6 +22,15 @@ export type DismissalChild = {
   grade: string | null;
   defaultDismissal: DismissalMethod;
   authorizations: PickupPerson[];
+  /**
+   * What the family said through their link this morning (item 5): whether the
+   * child is coming, and anything they wanted the staff to know.
+   *
+   * It is a message, not a decision. Nothing here shortens what the person at
+   * the gate has to do — a note saying "today grandma" still goes through the
+   * adult who signs the child out, exactly as a phone call would.
+   */
+  parentSaid: { coming: boolean; note: string | null } | null;
   dismissal: {
     method: DismissalMethod;
     pickedUpByName: string | null;
@@ -242,7 +251,13 @@ export default function DismissalBoard({
                           // row; clearing them on open keeps a name typed for
                           // one child from appearing under the next.
                           setOtherName("");
-                          setNote("");
+                          // Pre-filled with the parent's own words, so the
+                          // counselor does not retype them — and so the note
+                          // that ends up on the record is what the family
+                          // actually wrote. It is still an adult who saves it:
+                          // a note is a one-off change, and the gate in
+                          // src/lib/dismissal.ts has not moved.
+                          setNote(c.parentSaid?.note ?? "");
                           setOpenId(c.participantId);
                         }
                       }}
@@ -292,6 +307,23 @@ export default function DismissalBoard({
                     " · אין מורשי איסוף ברשימה"}
                   {c.dismissal?.note ? ` · הערה: ${c.dismissal.note}` : ""}
                 </p>
+
+                {/* A parent's message, in its own box rather than appended to
+                    the grey line above: at the gate this is the one sentence
+                    that changes what happens next, and it must not read as
+                    another detail among five. */}
+                {c.parentSaid?.note && (
+                  <p className="mx-4 mb-2 rounded-lg bg-late/10 px-3 py-2 text-xs text-late">
+                    <span className="font-semibold">ההורה הודיע/ה: </span>
+                    {c.parentSaid.note}
+                  </p>
+                )}
+
+                {c.parentSaid?.coming === false && !c.dismissal && (
+                  <p className="mx-4 mb-2 text-xs text-slate-500">
+                    ההורה הודיע/ה שהילד/ה לא מגיע/ה היום.
+                  </p>
+                )}
 
                 {rowError[c.participantId] && (
                   <p className="mx-4 mb-2 rounded-lg bg-late/10 px-3 py-2 text-xs font-semibold text-late">

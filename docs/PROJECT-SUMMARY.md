@@ -127,6 +127,24 @@
 - שדה **כיתה** (`grade`) לכל ילד. **מיון אוטומטי לפי כיתה** (א→ב→ג…, ואז שם; ללא
   כיתה בסוף) בכל הרשימות — לוגיקה ב-`src/lib/attendance.ts` (`gradeRank`/`sortByGrade`).
 
+### הורים: קישור אישי ומספר צפוי (גל 3, פריט 5)
+
+- **אין חשבונות להורים.** לכל ילד/ה אפשר להנפיק **קישור אישי** (`/p/<token>`)
+  ולשלוח אותו ב-WhatsApp. ההורה פותח, רואה את ארבעת המפגשים הקרובים, ולכל אחד
+  בוחר **מגיע/ה או לא מגיע/ה** ויכול לכתוב הודעה קצרה לצוות.
+- **הנפקה והפסקה** בשורת הילד/ה ב-`/roster`, תחת היכולת `parent:link` (מבוגרים
+  בלבד — הנפקת קישור היא מסירת מפתח). אפשר כמה קישורים לילד/ה — אמא ואבא
+  בנפרד — ולהפסיק אחד בלי לנתק את השני. המסך מראה אם הקישור **נפתח** אי פעם.
+- **זו הכתיבה הלא-מאומתת היחידה במערכת**: token של 256 ביט, בדיקת צורה לפני כל
+  שאילתה, הגבלת קצב, ורדיוס נזק של בוליאני אחד והערה אחת לילד/ה אחד/ת. הפירוט
+  ב-`src/lib/parents.ts` וב-`docs/changes/wave3-item5-parents.md`.
+- **מספר הילדים הצפוי** נגזר מזה ומופיע במסך היום ("צפויים: N מתוך M"), ומזין
+  את התרעת היחס של פריט 4. הכלל: **שתיקה = מגיע/ה** — רק "לא מגיע/ה" מפורש
+  מוריד מהספירה, כי לבשל לארבעה יותר מדי זה שאריות ולספור ארבעה בחוץ זה לא.
+- **הודעה על שינוי איסוף מגיעה למסך השחרור** בתיבה משלה ומוזנת מראש לשדה
+  ההערה — אבל היא **לא** יוצרת `Dismissal`. מי שמשחרר/ת הוא/היא שכותב/ת את
+  השורה, דרך השער של פריט 2. הנימוק המלא ב-`docs/changes/wave3-item5-parents.md`.
+
 ### ייצוא ל-Google Sheets / Excel
 
 - כל האירוע — `GET /api/events/[id]/export`. יום בודד — `GET /api/event-days/[id]/export`.
@@ -189,6 +207,11 @@ src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
 - **EventAttendance**: id, eventDayId→EventDay(Cascade), participantId→Participant
   (Cascade), status, markedByUserId→User(SetNull), createdAt, updatedAt,
   `@@unique([eventDayId,participantId])`.
+- **ParentLink** (פריט 5): id, participantId→Participant(Cascade), token(unique),
+  label?, revokedAt?, lastUsedAt?, createdAt. הקישור האישי של המשפחה.
+- **ExpectedAttendance** (פריט 5): id, eventDayId→EventDay(Cascade),
+  participantId→Participant(Cascade), coming(Bool), note?, createdAt, updatedAt,
+  `@@unique([eventDayId,participantId])`. ה"לפני" של `EventAttendance`.
 - **AttendanceRecord**: _legacy מהיום היומי הישן — לא בשימוש, נשאר כדי לא למחוק נתונים._
 
 ### מיגרציות (בסדר)
