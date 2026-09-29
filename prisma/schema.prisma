@@ -29,6 +29,8 @@ model User {
   dismissalMarks Dismissal[]        @relation("DismissalMarkedBy")
   shifts         Shift[]
   approvedSlots  ActivitySlot[]     @relation("SlotApprovedBy")
+  activities     Activity[]         @relation("ActivityCreatedBy")
+  activityVotes  ActivityRating[]
   createdAt      DateTime           @default(now())
 }
 
@@ -248,10 +250,20 @@ model ActivitySlot {
   approvedBy       User?     @relation("SlotApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   approvedAt       DateTime?
 
+  // Item 7: the bank activity this slot was taken from, if any. Optional —
+  // lunch, arrival and most of a day are not bank activities, and a slot keeps
+  // its own title/notes either way, so editing the bank entry later never
+  // rewrites what a past session says it did. SetNull only matters for a hard
+  // delete, which nothing does: activities are archived (Activity.deletedAt).
+  activityId String?
+  activity   Activity?        @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  ratings    ActivityRating[]
+
   createdAt DateTime @default(now())
 
   @@index([eventDayId])
   @@index([groupId])
+  @@index([activityId])
   // The review screen's question: what on this day is waiting for me.
   @@index([status])
 }
@@ -422,4 +434,71 @@ model ExpectedAttendance {
   @@unique([eventDayId, participantId])
   @@index([eventDayId])
   @@index([participantId])
+}
+
+// ── Activity bank (wave 3, item 7) ──────────────────────────────────────────
+// Youth counselors rotate every year or two, and what they learned about which
+// activity works with 7-year-olds leaves with them. The bank is where that
+// stays: an activity is written once, picked into a day's schedule from here,
+// and rated after it ran. The ratings are the point — without them this is one
+// more list nobody reads.
+model Activity {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  durationMinutes Int?
+  materials       String?
+  // Free labels: "חוץ", "יצירה", "גשם", "אנרגיה גבוהה". A String[] rather than
+  // a table because they are filters, not entities — nobody renames a tag.
+  tags            String[]
+  // Grade range as the same free-text grade the roster uses ("א'", "ג'"),
+  // compared through gradeRank(). null on either end = open on that end.
+  minGrade        String?
+  maxGrade        String?
+
+  createdByUserId String?
+  createdBy       User?   @relation("ActivityCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  // Archived rather than deleted: past sessions point at it and its ratings are
+  // the whole value of the row. Archived = out of the picker and the AI's list,
+  // still readable where a past slot shows it, and restorable from the bank.
+  deletedAt DateTime?
+
+  slots   ActivitySlot[]
+  ratings ActivityRating[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([deletedAt])
+}
+
+// One person's verdict on one run of an activity: a specific slot on a
+// specific day. Tied to the run rather than only to the activity because
+// "didn't work" on a rainy camp day and "didn't work" on a Tuesday are
+// different facts, and because it is what makes the rating un-repeatable —
+// one vote per person per run, changeable, not one more every time you tap.
+model ActivityRating {
+  id             String        @id @default(cuid())
+  activityId     String
+  activity       Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  // Both SetNull, not Cascade, and on purpose: the rating is the organisational
+  // memory this item exists for. A counselor whose account is removed when they
+  // leave, or a slot deleted from a past day, must not take the verdict with
+  // them — that is exactly the knowledge walking out of the door.
+  activitySlotId String?
+  activitySlot   ActivitySlot? @relation(fields: [activitySlotId], references: [id], onDelete: SetNull)
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // "worked" | "flopped" | "wrong_age". A plain String like every other enum
+  // here; the vocabulary lives in src/lib/activities.ts.
+  verdict        String
+  note           String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // One vote per person per run, changeable. Postgres treats NULLs as distinct,
+  // so orphaned rows (user or slot gone) never collide with each other.
+  @@unique([activitySlotId, userId])
+  @@index([activityId])
 }

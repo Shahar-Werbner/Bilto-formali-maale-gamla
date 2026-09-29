@@ -102,6 +102,22 @@
   (בלעדיו הכפתור מחזיר "לא מוגדר", השאר עובד). מודל דרך env `AI_MODEL` (ברירת מחדל
   `claude-opus-5`; אפשר `claude-haiku-4-5` לחיסכון).
 
+### מאגר פעילויות ותבניות לוז (גל 3, פריט 7)
+
+- **`/activities`** — מאגר של מה שהצוות הריץ: שם, תיאור, משך, ציוד, תגיות,
+  טווח כיתות. **ממוין לפי מה שעבד** (דירוגי הצוות), עם חיפוש, סינון כיתה
+  ותגיות. ארכיון במקום מחיקה — הדירוגים הם הערך.
+- **בחירה מהמאגר ללוז** מתוך טופס הפעילות ביום; ממלאת שם, תיאור ושעת סיום.
+  הסלוט שומר עותק משלו, כך שעריכת המאגר לא משכתבת את העבר.
+- **דירוג אחרי הפעילות** על הסלוט עצמו: 👍 עבד / 👎 לא עבד / 🎯 לא מתאים לגיל,
+  עם משפט לא-חובה. רק לפעילות מהמאגר, מאושרת, ביום שהגיע. קול אחד לאדם לריצה.
+  **מדריכי נוער מדרגים** (`activity:rate`); עריכת המאגר לבוגרים (`activity:edit`).
+- **"📚 שמירה במאגר"** — פעילות שהוקלדה ישר ללוז הופכת לרשומה במאגר בהקשה.
+- **תבניות = "📋 העתקת לוז מיום קודם"**: הסלוטים המאושרים של יום עבר (אותו יום
+  בשבוע קודם) מועתקים ליום הזה. בלי טבלת תבניות — היום הטוב האחרון הוא התבנית.
+- **ה-AI מקבל את המאגר**, מהמוצלח ביותר, וממלא משבצות כלליות ממנו במקום
+  להמציא. פירוט: `docs/changes/wave3-item7-activity-bank.md`.
+
 ### רשימת ילדים וקבוצות
 
 - `/roster` — "כל הילדים" (רשימה ראשית: הוספה, עריכת שם וכיתה inline, מחיקה) +
@@ -212,6 +228,14 @@ src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
 - **ExpectedAttendance** (פריט 5): id, eventDayId→EventDay(Cascade),
   participantId→Participant(Cascade), coming(Bool), note?, createdAt, updatedAt,
   `@@unique([eventDayId,participantId])`. ה"לפני" של `EventAttendance`.
+- **Activity** (פריט 7): id, name, description?, durationMinutes?, materials?,
+  tags(String[]), minGrade?, maxGrade?, createdByUserId?→User(SetNull),
+  deletedAt? (ארכיון), createdAt, updatedAt.
+- **ActivityRating** (פריט 7): id, activityId→Activity(Cascade),
+  activitySlotId?→ActivitySlot(**SetNull**), userId?→User(**SetNull**),
+  verdict("worked"|"flopped"|"wrong_age"), note?, `@@unique([activitySlotId,userId])`.
+  SetNull בכוונה — הדירוג שורד מדריך שעזב וסלוט שנמחק.
+- **ActivitySlot.activityId?** →Activity(SetNull) — הסלוט נבחר מהמאגר.
 - **AttendanceRecord**: _legacy מהיום היומי הישן — לא בשימוש, נשאר כדי לא למחוק נתונים._
 
 ### מיגרציות (בסדר)

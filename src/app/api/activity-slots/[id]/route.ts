@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCapability, sessionCan } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
-import { liveGroup, liveActivitySlot, slotNotFound } from "@/lib/event-scope";
+import { liveActivity, liveGroup, liveActivitySlot, slotNotFound } from "@/lib/event-scope";
 import { canChangeSlot, statusAfterEdit } from "@/lib/schedule";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // PATCH /api/activity-slots/:id — update slot fields.
-// Body may include: startTime, endTime, title, location, groupId, notes.
+// Body may include: startTime, endTime, title, location, groupId, notes,
+// activityId ("" unlinks it from the bank).
 // Empty string clears an optional field; groupId "" → whole event.
 //
 // Open to anyone who may propose, but only for a slot that is not part of the
@@ -77,6 +78,16 @@ export async function PATCH(
       }
       data.groupId = v;
     }
+    if (body?.activityId !== undefined) {
+      const v =
+        typeof body.activityId === "string" && body.activityId.trim()
+          ? body.activityId.trim()
+          : null;
+      if (v && !(await prisma.activity.findFirst({ where: liveActivity(v) }))) {
+        return NextResponse.json({ error: "הפעילות לא נמצאה במאגר" }, { status: 400 });
+      }
+      data.activityId = v;
+    }
 
     // `update` takes no relation filter, so confirm the slot hangs off a live
     // event before writing to it.
@@ -103,7 +114,10 @@ export async function PATCH(
         // waiting for a re-submit button that does not exist.
         status: statusAfterEdit({ status: owned.status, canEdit }),
       },
-      include: { group: { select: { id: true, name: true } } },
+      include: {
+        group: { select: { id: true, name: true } },
+        activity: { select: { id: true, name: true } },
+      },
     });
     return NextResponse.json(slot);
   } catch (err) {

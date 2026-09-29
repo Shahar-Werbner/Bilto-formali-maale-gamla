@@ -91,6 +91,16 @@ export const CAPABILITIES = [
   // a name, so it sits with contacts and above the day-to-day.
   "parent:link",
 
+  // The activity bank (item 7). Rating is its own capability, and the one a
+  // youth counselor gets: they are the ones who ran the activity and watched
+  // it land or not, so their verdict is the most valuable one in the bank.
+  // Writing the bank itself — adding, editing, archiving an entry — is an
+  // adult's, for the same reason the live schedule is: it is what the next
+  // cohort will plan from.
+  "activity:view",
+  "activity:edit",
+  "activity:rate",
+
   // User administration.
   "users:manage",
 ] as const;
@@ -119,6 +129,9 @@ const STAFF: Capability[] = [
   "shift:view:all",
   "shift:assign",
   "parent:link",
+  "activity:view",
+  "activity:edit",
+  "activity:rate",
 ];
 
 // A youth counselor is typically 15. They run one activity, not the session.
@@ -137,6 +150,8 @@ const STAFF: Capability[] = [
 //                     out of reach is writing straight into the live schedule,
 //                     and approving anything — including their own proposal.
 //   schedule:approve — approving your own plan is the loop with nothing in it.
+//   activity:edit   — the bank is what next year's counselors plan from; an
+//                     adult curates it. They still feed it, by rating.
 //   parent:link     — a parent link is an unauthenticated write into a child's
 //                     record. Minting one, or turning one off, is an adult's
 //                     call; a youth counselor asks for it rather than issues it.
@@ -157,6 +172,10 @@ const YOUTH: Capability[] = [
   "dismissal:mark",
   "group:view",
   "shift:view:own",
+  // The bank they plan from, and the verdict after they ran something from it.
+  // Not activity:edit — see the note on the capability.
+  "activity:view",
+  "activity:rate",
 ];
 
 export const ROLE_CAPABILITIES: Record<Role, readonly Capability[]> = {

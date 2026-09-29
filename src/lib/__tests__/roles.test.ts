@@ -73,6 +73,7 @@ describe("capabilities", () => {
     ["shift:view:all", "other people's hours"],
     ["schedule:edit", "writing straight into the live schedule"],
     ["schedule:approve", "signing off a plan — including their own"],
+    ["activity:edit", "rewriting the bank the next cohort plans from"],
   ] as const)("denies youth %s — %s", (capability, _why) => {
     expect(can("youth", capability)).toBe(false);
   });
@@ -93,6 +94,8 @@ describe("capabilities", () => {
       "dismissal:mark",
       "signing a child out to the person on their list — the other half of the daily job",
     ],
+    ["activity:view", "the bank they plan their activity from"],
+    ["activity:rate", "saying whether the activity they ran worked — they saw it"],
   ] as const)("allows youth %s — %s", (capability, _why) => {
     expect(can("youth", capability)).toBe(true);
   });

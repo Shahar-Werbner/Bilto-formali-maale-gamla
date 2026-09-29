@@ -33,7 +33,15 @@ export default async function EventPage({
           include: {
             activitySlots: {
               orderBy: [{ order: "asc" }, { startTime: "asc" }],
-              include: { group: { select: { id: true, name: true } } },
+              include: {
+                group: { select: { id: true, name: true } },
+                activity: { select: { id: true, name: true } },
+                // Only my own verdict: the day screen asks "how did it go?"
+                // of the person holding the phone. The totals live in the bank.
+                ratings: session?.user?.id
+                  ? { where: { userId: session.user.id }, select: { verdict: true } }
+                  : { where: { id: "" }, select: { verdict: true } },
+              },
             },
           },
         },
@@ -101,6 +109,9 @@ export default async function EventPage({
       notes: s.notes,
       order: s.order,
       status: s.status,
+      activityId: s.activity?.id ?? null,
+      activityName: s.activity?.name ?? null,
+      myVerdict: s.ratings[0]?.verdict ?? null,
     }));
   }
 

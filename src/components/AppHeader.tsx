@@ -4,6 +4,7 @@ import SignOutButton from "./SignOutButton";
 const NAV = [
   { href: "/events", label: "אירועים" },
   { href: "/roster", label: "קבוצות" },
+  { href: "/activities", label: "פעילויות" },
   { href: "/history", label: "היסטוריה" },
   { href: "/reports", label: "דוחות" },
 ];
