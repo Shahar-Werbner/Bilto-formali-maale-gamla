@@ -13,6 +13,8 @@ export type ParsedSlot = {
   location: string | null;
   groupName: string | null;
   notes: string | null;
+  /** The bank activity's exact name, when the model chose one (item 7). */
+  activityName: string | null;
 };
 
 // JSON schema for structured output. All fields are strings ("" = not provided)
@@ -36,19 +38,42 @@ const SCHEMA = {
             type: "string",
             description: "שם קבוצה מדויק מתוך הרשימה שסופקה, או ריק אם הפעילות לכל האירוע",
           },
+          activity: {
+            type: "string",
+            description: "שם מדויק של פעילות ממאגר הפעילויות, אם הסלוט הוא פעילות מהמאגר; אחרת ריק",
+          },
         },
-        required: ["startTime", "endTime", "title", "location", "notes", "group"],
+        required: ["startTime", "endTime", "title", "location", "notes", "group", "activity"],
       },
     },
   },
   required: ["slots"],
 } as const;
 
-function systemPrompt(groupNames: string[], dateLabel?: string): string {
+// Exported for the test that pins what the model is told about the bank.
+export function systemPrompt(
+  groupNames: string[],
+  dateLabel?: string,
+  bankLines: string[] = [],
+): string {
   const groups =
     groupNames.length > 0
       ? `שמות הקבוצות הקיימות (השתמש רק בשם מדויק מתוך הרשימה, אחרת השאר ריק): ${groupNames.join(", ")}.`
       : "אין קבוצות מוגדרות — השאר את שדה הקבוצה ריק תמיד.";
+
+  // Item 7: the model proposes from what this team has actually run, best
+  // rated first, instead of inventing an activity nobody here has tried. It
+  // still does not add activities the plan did not ask for — a gap it may fill
+  // is a slot the text left generic ("פעילות חוץ", "יצירה").
+  const bank =
+    bankLines.length > 0
+      ? [
+          "מאגר הפעילויות של הצוות (מסודר מהמוצלחת ביותר, לפי דירוגי הצוות):",
+          bankLines.join("\n"),
+          "כשהתיאור מזכיר פעילות מהמאגר, או משאיר משבצת כללית (למשל 'פעילות חוץ', 'יצירה', 'משחק'), בחר מהמאגר פעילות מתאימה — העדף כאלה שעבדו — כתוב את שמה המדויק בשדה activity ובשדה title.",
+          "אל תמציא פעילות חדשה למשבצת כללית כשיש במאגר פעילות מתאימה. פעילות שאינה מהמאגר (ארוחה, הגעה, איסוף) — השאר activity ריק.",
+        ].join("\n")
+      : "אין מאגר פעילויות — השאר את שדה activity ריק תמיד.";
 
   return [
     "אתה עוזר שמסדר תכנון פעילויות של חינוך בלתי פורמלי ללוז יומי מובנה.",
@@ -58,7 +83,8 @@ function systemPrompt(groupNames: string[], dateLabel?: string): string {
     dateLabel ? `היום המדובר: ${dateLabel}.` : "",
     groups,
     "אם לא צויינה שעה מפורשת, שערך רצף שעות סביר לפי הסדר. שמור על הסדר הכרונולוגי.",
-    "החזר אך ורק לפי הסכמה. אל תמציא פעילויות שלא הופיעו.",
+    "החזר אך ורק לפי הסכמה. אל תוסיף פעילויות שלא הופיעו בתיאור.",
+    bank,
   ]
     .filter(Boolean)
     .join(" ");
@@ -77,6 +103,8 @@ export async function parseSchedule(opts: {
   pdfBase64?: string;
   groupNames: string[];
   dateLabel?: string;
+  /** From bankForPrompt() in src/lib/activities.ts. */
+  bankLines?: string[];
 }): Promise<ParsedSlot[]> {
   const client = new Anthropic();
 
@@ -101,7 +129,7 @@ export async function parseSchedule(opts: {
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4096,
-    system: systemPrompt(opts.groupNames, opts.dateLabel),
+    system: systemPrompt(opts.groupNames, opts.dateLabel, opts.bankLines),
     output_config: {
       effort: "low",
       format: { type: "json_schema", schema: SCHEMA },
@@ -147,6 +175,7 @@ export async function parseSchedule(opts: {
       location: clean(s?.location),
       notes: clean(s?.notes),
       groupName: clean(s?.group),
+      activityName: clean(s?.activity),
     });
   }
   return out;

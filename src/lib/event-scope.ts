@@ -74,3 +74,18 @@ export function slotNotFound(): NextResponse {
 export function groupNotFound(): NextResponse {
   return NextResponse.json({ error: "הקבוצה לא נמצאה" }, { status: 404 });
 }
+
+// The activity bank (item 7). An archived activity leaves the bank's list, the
+// schedule's picker and the AI's choices; a past slot that points at it still
+// shows its name. Anything resolving an activity by id for a *new* write — a
+// slot picking it, a rating attaching to it — goes through this.
+export const LIVE_ACTIVITY = { deletedAt: null } as const;
+
+/** An Activity, only if it is not archived. */
+export function liveActivity(id: string) {
+  return { id, ...LIVE_ACTIVITY };
+}
+
+export function activityNotFound(): NextResponse {
+  return NextResponse.json({ error: "הפעילות לא נמצאה במאגר" }, { status: 404 });
+}

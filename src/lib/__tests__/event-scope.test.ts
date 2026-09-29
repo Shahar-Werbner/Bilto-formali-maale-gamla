@@ -44,6 +44,10 @@ const SCOPED_MODELS = [
   // it still exists.
   "expectedAttendance",
   "parentLink",
+  // Item 7. An archived activity must not be picked into a new day or rated;
+  // a rating reaches its slot, and through it a day whose event may be gone.
+  "activity",
+  "activityRating",
 ];
 
 // Routes that legitimately need no scoping. Each one states why, because an
@@ -55,6 +59,8 @@ const EXEMPT: Record<string, string> = {
     "compares against every name, deleted included, so a re-import surfaces as a skip rather than silently creating a second copy (see the comment there)",
   "admin/users/[id]/route.ts": "acts on User, which has no soft delete",
   "register/route.ts": "creates a User; no event or child is resolved",
+  "activities/route.ts":
+    "POST only creates; GET lists through loadBank() in src/lib/activity-query.ts, which filters Activity.deletedAt and counts ratings and uses only on live events",
   "parent/[token]/route.ts":
     "it resolves nothing by id itself: the token goes through resolveParentLink() and the day through parentMayWriteDay(), both in src/lib/parent-link.ts, which filter the child's deletedAt and the event's — and a link whose child was deleted answers exactly as an unknown token does",
 };

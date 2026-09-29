@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCapability, sessionCan } from "@/lib/api-auth";
 import { handleApiError } from "@/lib/api-error";
-import { liveGroup, liveEventDay } from "@/lib/event-scope";
+import {
+  liveActivity,
+  liveActivitySlotsOfDay,
+  liveGroup,
+  liveEventDay,
+} from "@/lib/event-scope";
 import { statusForNewSlot } from "@/lib/schedule";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -23,10 +28,15 @@ export async function GET(
   if (response) return response;
 
   try {
+    // Scoped like every other read: a day's id says nothing about whether its
+    // event was deleted, and this used to answer with the schedule anyway.
     const slots = await prisma.activitySlot.findMany({
-      where: { eventDayId: params.id },
+      where: liveActivitySlotsOfDay(params.id),
       orderBy: [{ order: "asc" }, { startTime: "asc" }],
-      include: { group: { select: { id: true, name: true } } },
+      include: {
+        group: { select: { id: true, name: true } },
+        activity: { select: { id: true, name: true } },
+      },
     });
     return NextResponse.json(slots);
   } catch (err) {
@@ -35,7 +45,9 @@ export async function GET(
 }
 
 // POST /api/event-days/:id/activity-slots — add a schedule slot.
-// Body: { startTime, endTime?, title, location?, groupId?, notes? }
+// Body: { startTime, endTime?, title, location?, groupId?, notes?, activityId? }
+// `activityId` = picked from the bank (item 7); the slot still carries its own
+// title and notes, so the bank entry can change later without rewriting it.
 //
 // Guarded on the narrower capability, `schedule:propose`: a youth counselor
 // plans the activity they run. What `schedule:edit` changes is not whether the
@@ -75,6 +87,14 @@ export async function POST(
       return NextResponse.json({ error: "קבוצה לא נמצאה" }, { status: 400 });
     }
 
+    const activityId = cleanStr(body?.activityId);
+    if (
+      activityId &&
+      !(await prisma.activity.findFirst({ where: liveActivity(activityId) }))
+    ) {
+      return NextResponse.json({ error: "הפעילות לא נמצאה במאגר" }, { status: 400 });
+    }
+
     const canEdit = await sessionCan("schedule:edit");
 
     const last = await prisma.activitySlot.findFirst({
@@ -92,10 +112,14 @@ export async function POST(
         location: cleanStr(body?.location),
         groupId,
         notes: cleanStr(body?.notes),
+        activityId,
         order: (last?.order ?? -1) + 1,
         status: statusForNewSlot(canEdit),
       },
-      include: { group: { select: { id: true, name: true } } },
+      include: {
+        group: { select: { id: true, name: true } },
+        activity: { select: { id: true, name: true } },
+      },
     });
     return NextResponse.json(slot, { status: 201 });
   } catch (err) {

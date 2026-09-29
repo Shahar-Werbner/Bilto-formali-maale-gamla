@@ -611,6 +611,10 @@ export default function EventBoard({
             canEdit={canEditSchedule}
             canPropose={canProposeSchedule}
             canApprove={canApproveSchedule}
+            dayDate={selectedDay?.date ?? ""}
+            canUseBank={capabilities.includes("activity:view")}
+            canEditBank={capabilities.includes("activity:edit")}
+            canRate={capabilities.includes("activity:rate")}
           />
 
           {/* Who is working today, and whether that is enough people. Above

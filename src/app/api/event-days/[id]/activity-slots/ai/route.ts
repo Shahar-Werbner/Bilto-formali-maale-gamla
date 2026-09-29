@@ -6,6 +6,8 @@ import { LIVE_GROUP, liveEventDay } from "@/lib/event-scope";
 import { parseSchedule } from "@/lib/ai-schedule";
 import { formatDateOnly } from "@/lib/attendance";
 import { formatHebrewDate } from "@/lib/events";
+import { bankForPrompt, matchActivityByName } from "@/lib/activities";
+import { loadBank } from "@/lib/activity-query";
 
 export const maxDuration = 60;
 
@@ -67,6 +69,9 @@ export async function POST(
       groups.map((g) => [g.name.trim().toLowerCase(), g]),
     );
 
+    // Only live activities: an archived one is off the menu for new days.
+    const bank = await loadBank();
+
     let parsed;
     try {
       parsed = await parseSchedule({
@@ -74,6 +79,7 @@ export async function POST(
         pdfBase64,
         groupNames: groups.map((g) => g.name),
         dateLabel: formatHebrewDate(formatDateOnly(day.date)),
+        bankLines: bankForPrompt(bank),
       });
     } catch (err) {
       console.error("[ai-schedule]", err);
@@ -103,6 +109,9 @@ export async function POST(
         const group = s.groupName
           ? groupByName.get(s.groupName.trim().toLowerCase())
           : undefined;
+        // A name the model made up, or misspelled past recognition, links
+        // nothing — the slot is still created from its title.
+        const activity = matchActivityByName(bank, s.activityName);
         return prisma.activitySlot.create({
           data: {
             eventDayId: day.id,
@@ -112,9 +121,13 @@ export async function POST(
             location: s.location,
             notes: s.notes,
             groupId: group?.id ?? null,
+            activityId: activity?.id ?? null,
             order: base + i,
           },
-          include: { group: { select: { id: true, name: true } } },
+          include: {
+            group: { select: { id: true, name: true } },
+            activity: { select: { id: true, name: true } },
+          },
         });
       }),
     );
