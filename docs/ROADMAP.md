@@ -80,7 +80,7 @@
 |  ✅   | **4** | שיבוץ צוות + התרעת יחס + תפקיד `youth`  | **נבנה** — שלב א׳ (`docs/changes/wave3-item4-youth-role.md`) ושלב ב׳ (`docs/changes/wave3-item4-stage-b-shifts.md`). בלי מיגרציה. **`shift:availability` לא נבנתה** — אין טבלה לזמינות; ראו "הצעות מהשטח" |
 |  ✅   | **5** | הורים: הודעת הגעה + שינוי איסוף חד-פעמי | **נבנה** — ראו `docs/changes/wave3-item5-parents.md`. **עם מיגרציה** `add_parent_links_expected_attendance` (תוספתית: שתי טבלאות חדשות) |
 |  ✅   | **6** | שעות אוטומטיות + דוח חודשי              | **נבנה** — ראו `docs/changes/wave3-item6-hours-report.md`. בלי מיגרציה. סוגר גם את שלוש נגיעות הייצוא שהצטברו מפריטים 1, 2 ו-3 |
-|  ⬜   | **7** | מאגר פעילויות + תבניות לוז              | משתלם מהחודש השני, לא מהיום הראשון                           |
+|  🔨   | **7** | מאגר פעילויות + תבניות לוז              | **בעבודה** — ענף `ccr-7a3fbd7f-ctx7ka`. **עם מיגרציה** (טבלת `Activity`, `ActivitySlot.activityId`) |
 
 ### 📌 מצב סנכרון — נכון ל-19.09
 
@@ -92,7 +92,7 @@
 
 | משאב משותף | מצב | מי |
 | --- | --- | --- |
-| **`prisma/`** | 🟢 **פנוי** | שוחרר אחרי מיגרציית `add_parent_links_expected_attendance` (פריט 5). היא תוספתית בלבד — `ParentLink` ו-`ExpectedAttendance`, בלי נגיעה בטבלה קיימת |
+| **`prisma/`** | 🔴 **תפוס** | פריט 7, ענף `ccr-7a3fbd7f-ctx7ka` — מיגרציה תוספתית אחת: `Activity` (+ דירוגים) ו-`ActivitySlot.activityId`. אל תוסיפו מיגרציה עד שישוחרר כאן |
 | `src/lib/roles.ts` (טבלת היכולות) | 🟢 פנוי | שטח משותף — ראו הערה למטה |
 | `src/lib/event-scope.ts` | 🟢 פנוי | שטח משותף |
 
