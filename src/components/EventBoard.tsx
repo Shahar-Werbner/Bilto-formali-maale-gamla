@@ -11,6 +11,7 @@ import {
 } from "@/lib/attendance";
 import { formatHebrewDate, formatTimeRange, hoursBetween } from "@/lib/events";
 import { expectedHeadcount } from "@/lib/parents";
+import type { FoodCount } from "@/lib/registration-overview";
 import type { Capability } from "@/lib/roles";
 import DaySchedule, { type Slot } from "./DaySchedule";
 import DayGroupsBoard from "./DayGroupsBoard";
@@ -33,7 +34,17 @@ type Day = {
   startTime: string | null;
   endTime: string | null;
   /** What the parents said through their links (item 5) or the registration form (item 8). */
-  expected?: { coming: number; notComing: number; byRegistration?: boolean };
+  expected?: {
+    coming: number;
+    notComing: number;
+    byRegistration?: boolean;
+    /** Item 8b: of those coming, who brings food. Only for an event that counts by registration. */
+    food?: FoodCount;
+  };
+  /** "היום צריך: …" — the event's equipment list plus this day's additions (item 8b). */
+  equipment?: string[];
+  /** Free notes parents wrote in the registration form, for children coming this day. */
+  registrationNotes?: { name: string; grade: string | null; note: string }[];
 };
 type Group = { id: string; name: string; memberIds: string[] };
 type EventData = EventSettingsData & {
@@ -569,6 +580,18 @@ export default function EventBoard({
                 </span>
               );
             })()}
+          {/* The kitchen's number: of those registered, who comes without
+              food. "Unknown" is shown, not guessed. */}
+          {selectedDay.expected?.food && selectedDay.expected.food.coming > 0 && (
+            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
+              🍽 {selectedDay.expected.food.withFood} עם אוכל ·{" "}
+              <span className="font-semibold">
+                {selectedDay.expected.food.withoutFood} בלי
+              </span>
+              {selectedDay.expected.food.unknown > 0 &&
+                ` · ${selectedDay.expected.food.unknown} לא ידוע`}
+            </span>
+          )}
 
           <a
             href={`/api/event-days/${selectedDayId}/export`}
@@ -577,6 +600,40 @@ export default function EventBoard({
             ⬇ ייצוא היום הנבחר
           </a>
         </div>
+      )}
+
+      {/* Item 8b: what the children were asked to bring, so it can be checked
+          at the gate and not only requested in the form. */}
+      {selectedDay && (selectedDay.equipment?.length ?? 0) > 0 && (
+        <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          <span className="font-semibold">🎒 היום צריך: </span>
+          {selectedDay.equipment!.join(" · ")}
+        </p>
+      )}
+
+      {/* What parents wrote to the staff in the registration form. On the day
+          screen because the person who needs "leaves at 11" or "afraid of
+          dogs" is whoever runs the day, not whoever approved the form. */}
+      {selectedDay && (selectedDay.registrationNotes?.length ?? 0) > 0 && (
+        <details
+          key={`notes-${selectedDayId}`}
+          className="rounded-xl border border-late/30 bg-late/5 px-4 py-2.5 text-sm"
+        >
+          <summary className="cursor-pointer font-semibold text-late">
+            📝 הערות הורים מההרשמה ({selectedDay.registrationNotes!.length})
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1.5 text-slate-800">
+            {selectedDay.registrationNotes!.map((n, i) => (
+              <li key={i}>
+                <span className="font-semibold">
+                  {n.name}
+                  {n.grade ? ` · ${n.grade}` : ""}:
+                </span>{" "}
+                {n.note}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {error && (

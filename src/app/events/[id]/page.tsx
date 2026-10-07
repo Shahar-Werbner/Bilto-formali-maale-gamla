@@ -9,6 +9,8 @@ import { isEventKind } from "@/lib/events";
 import { sessionCapabilities } from "@/lib/api-auth";
 import { LIVE_GROUP } from "@/lib/event-scope";
 import { eventUsesRegistration } from "@/lib/registration-server";
+import { dayEquipment } from "@/lib/registration-overview";
+import { foodByDay, registrationNotesByDay } from "@/lib/registration-overview-server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ export default async function EventPage({
       where: { id: params.id, deletedAt: null },
       include: {
         weekdays: { orderBy: { weekday: "asc" } },
+        registration: { select: { equipment: true, openedAt: true } },
         participants: {
           where: { deletedAt: null },
           orderBy: { createdAt: "asc" },
@@ -94,6 +97,18 @@ export default async function EventPage({
   // expected — see expectedHeadcount() in src/lib/parents.ts.
   const byRegistration = await eventUsesRegistration(event.id);
 
+  // Item 8b: what the registrations add to the day — how many bring food,
+  // and the free notes parents wrote for the staff. A phone number inside a
+  // note is hidden from whoever may not see contacts.
+  const [food, notesByDay] = byRegistration
+    ? await Promise.all([
+        foodByDay(event.id),
+        registrationNotesByDay(event.id, {
+          withContacts: capabilities.includes("roster:contacts"),
+        }),
+      ])
+    : [{}, {}];
+
   const expectedByDay: Record<string, { coming: number; notComing: number }> = {};
   for (const row of expectedRows) {
     const bucket = (expectedByDay[row.eventDayId] ??= { coming: 0, notComing: 0 });
@@ -152,7 +167,11 @@ export default async function EventPage({
       expected: {
         ...(expectedByDay[d.id] ?? { coming: 0, notComing: 0 }),
         byRegistration,
+        food: byRegistration ? food[d.id] : undefined,
       },
+      // "היום צריך: …" — checked at the gate, not only asked for in the form.
+      equipment: dayEquipment(event.registration?.equipment ?? [], d.equipment),
+      registrationNotes: sortByGrade(notesByDay[d.id] ?? []),
     })),
   };
 
@@ -164,12 +183,13 @@ export default async function EventPage({
         isAdmin={session?.user?.role === "admin"}
       />
       <main className="mx-auto max-w-3xl px-4 py-4">
-        {capabilities.includes("registration:manage") && (
+        {(capabilities.includes("registration:manage") ||
+          (event.registration?.openedAt && capabilities.includes("event:view"))) && (
           <a
             href={`/events/${event.id}/registration`}
             className="mb-3 inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            📝 טופס הרשמה
+            📝 {capabilities.includes("registration:manage") ? "טופס הרשמה" : "הרשמה"}
           </a>
         )}
         <EventBoard
