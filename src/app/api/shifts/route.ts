@@ -10,6 +10,8 @@ import {
 } from "@/lib/event-scope";
 import { ROLE_LABEL, isRole } from "@/lib/roles";
 import { effectiveHours, parseShiftInput, staffing } from "@/lib/shifts";
+import { expectedHeadcount } from "@/lib/parents";
+import { eventUsesRegistration } from "@/lib/registration-server";
 
 // Who is working a session, and whether that is enough people.
 //
@@ -139,7 +141,14 @@ export async function GET(request: Request) {
         rosteredChildren: rostered,
         // Only a fully marked day has a real number — see src/lib/shifts.ts.
         markedChildren: rostered > 0 && markedTotal >= rostered ? here : null,
-        expectedChildren: answered > 0 ? rostered - notComing : null,
+        // Item 8: an event with a registration link counts only the children
+        // who registered; the rule lives in expectedHeadcount().
+        expectedChildren: expectedHeadcount({
+          rostered,
+          coming: answered - notComing,
+          notComing,
+          byRegistration: await eventUsesRegistration(day.event.id),
+        }).expected,
         staffCount: rows.length,
         adultCount: rows.filter((s) => ADULT_ROLES.includes(s.user.role)).length,
         maxChildrenPerStaff: day.event.maxChildrenPerStaff,

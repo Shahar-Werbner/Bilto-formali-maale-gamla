@@ -161,6 +161,22 @@
   ההערה — אבל היא **לא** יוצרת `Dismissal`. מי שמשחרר/ת הוא/היא שכותב/ת את
   השורה, דרך השער של פריט 2. הנימוק המלא ב-`docs/changes/wave3-item5-parents.md`.
 
+### טופס הרשמה לאירוע (גל 3, פריט 8א)
+
+- **קישור אחד לאירוע** (`/r/<token>`), שנשלח לקבוצת ה-WhatsApp של ההורים. ההגדרות
+  ב-`/events/<id>/registration`: טקסט פתיחה, מחיר, מכסה, אישור אוטומטי (ברירת מחדל)
+  או ידני, מועד סגירה בשעון ישראל, וציוד לאירוע + תוספות ליום. סגירה ידנית והחלפת
+  קישור (הישן מת מיד). יכולת `registration:manage` — לא לנוער.
+- **ההורה בוחר/ת ילד/ה מרשימה** (שם וכיתה בלבד — ורק כשהטופס פתוח) או מקליד/ה
+  ילד/ה חדש/ה; לכל יום מגיע/ה + עם אוכל, איך חוזר/ת הביתה ומי אוסף/ת, שם וטלפון
+  ההורה. אחים — רשומה מלאה לכל אחד/ת, ממולאת מראש מהקודם/ת. הגשה חוזרת מחליפה.
+- **מה ממתין לבוגר/ת**: ילד/ה חדש/ה, "הולך/ת לבד", מורשה איסוף חדש/ה, וטלפון שונה
+  מהשמור — **ורק כששונה ממה ששמור**. שום דבר מהם לא נכתב לרשומת הילד/ה בלי אישור.
+- **מכסה מלאה = רשימת המתנה** לפי סדר; מקום שהתפנה מאושר מהרשימה בידי הצוות.
+- **באירוע עם הרשמה, רק מי שנרשם/ה צפוי/ה** — המספר במסך היום ("נרשמו: N") והתרעת
+  היחס. בלי הרשמה נשאר הכלל של פריט 5. שניהם ב-`expectedHeadcount()`.
+- פירוט, האילוצים ואיך נבדקו: `docs/changes/wave3-item8a-registration.md`.
+
 ### ייצוא ל-Google Sheets / Excel
 
 - כל האירוע — `GET /api/events/[id]/export`. יום בודד — `GET /api/event-days/[id]/export`.
@@ -236,6 +252,13 @@ src/components/{LoginForm,RegisterForm,SignOutButton,AppHeader,RosterManager,
   verdict("worked"|"flopped"|"wrong_age"), note?, `@@unique([activitySlotId,userId])`.
   SetNull בכוונה — הדירוג שורד מדריך שעזב וסלוט שנמחק.
 - **ActivitySlot.activityId?** →Activity(SetNull) — הסלוט נבחר מהמאגר.
+- **RegistrationForm** (פריט 8): אחד לאירוע — token, טקסט, מחיר, מכסה, autoApprove,
+  openedAt/closesAt/closedAt, equipment[], equipmentUpdatedAt.
+- **Registration** (פריט 8): ילד/ה באירוע, `@@unique([formId, participantId])`;
+  participantId ריק לילד/ה חדש/ה עד האישור. פרטי ההורה ובקשת האיסוף **של ההגשה**
+  (לא נכתבים לילד/ה), status, reviewReasons[], revision.
+- **RegistrationDay** (פריט 8): coming, bringsFood ליום. מועתק ל-ExpectedAttendance
+  רק כשההרשמה מאושרת. בנוסף: `EventDay.equipment[]`, `ExpectedAttendance.bringsFood?`.
 - **AttendanceRecord**: _legacy מהיום היומי הישן — לא בשימוש, נשאר כדי לא למחוק נתונים._
 
 ### מיגרציות (בסדר)

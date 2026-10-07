@@ -31,6 +31,7 @@ model User {
   approvedSlots  ActivitySlot[]     @relation("SlotApprovedBy")
   activities     Activity[]         @relation("ActivityCreatedBy")
   activityVotes  ActivityRating[]
+  regReviews     Registration[]     @relation("RegistrationReviewedBy")
   createdAt      DateTime           @default(now())
 }
 
@@ -86,16 +87,17 @@ model Participant {
   // adult. The unsafe direction must never be the one you get by forgetting.
   defaultDismissal String @default("escort")
 
-  groups      Group[]               @relation("GroupMembers")
-  attendance  AttendanceRecord[]
-  events      Event[]               @relation("EventParticipants")
-  eventMarks  EventAttendance[]
-  pickupAuth  PickupAuthorization[]
-  dismissals  Dismissal[]
-  dayGroups   DayGroupAssignment[]
-  parentLinks ParentLink[]
-  expected    ExpectedAttendance[]
-  createdAt   DateTime              @default(now())
+  groups        Group[]               @relation("GroupMembers")
+  attendance    AttendanceRecord[]
+  events        Event[]               @relation("EventParticipants")
+  eventMarks    EventAttendance[]
+  pickupAuth    PickupAuthorization[]
+  dismissals    Dismissal[]
+  dayGroups     DayGroupAssignment[]
+  parentLinks   ParentLink[]
+  expected      ExpectedAttendance[]
+  registrations Registration[]
+  createdAt     DateTime              @default(now())
 
   @@index([deletedAt])
 }
@@ -151,9 +153,10 @@ model Event {
   maxChildrenPerStaff Int?
 
   deletedAt    DateTime? // soft delete — see Participant.deletedAt
-  participants Participant[] @relation("EventParticipants")
+  participants Participant[]     @relation("EventParticipants")
   days         EventDay[]
-  createdAt    DateTime      @default(now())
+  registration RegistrationForm?
+  createdAt    DateTime          @default(now())
 
   @@index([deletedAt])
 }
@@ -186,12 +189,17 @@ model EventDay {
   startTime String? // "HH:mm"
   endTime   String? // "HH:mm"
 
+  // What to bring on this day only, on top of the event's list (item 8):
+  // "בגד ים" on the pool day. Plain strings — see RegistrationForm.equipment.
+  equipment String[] @default([])
+
   attendance       EventAttendance[]
   activitySlots    ActivitySlot[]
   dismissals       Dismissal[]
   groupAssignments DayGroupAssignment[]
   shifts           Shift[]
   expected         ExpectedAttendance[]
+  registrationDays RegistrationDay[]
   createdAt        DateTime             @default(now())
 
   @@unique([eventId, date])
@@ -415,6 +423,11 @@ model ExpectedAttendance {
 
   coming Boolean
 
+  // Item 8: is the child bringing their own food on this day. null = nobody
+  // said (every answer that came through item 5's link, which does not ask).
+  // The kitchen cooks for the children who are coming and are not bringing.
+  bringsFood Boolean?
+
   // The parent's own words, usually the one-off pickup change ("היום סבתא
   // אוספת"). It lives here and NOT on Dismissal.note, which is where the
   // original spec put it, for two reasons that only showed up against the
@@ -501,4 +514,141 @@ model ActivityRating {
   // so orphaned rows (user or slot gone) never collide with each other.
   @@unique([activitySlotId, userId])
   @@index([activityId])
+}
+
+// ── Registration (wave 3, item 8) ───────────────────────────────────────────
+//
+// One fixed form in code, parameterised per event — not a form builder. The
+// answers have to feed the system (the roster, the event, the expected count,
+// who goes home with whom), and arbitrary fields stored as a blob cannot.
+//
+// The link is sent once to the parents' WhatsApp group, so it identifies
+// nobody: anyone holding it can pick any child from the list. Everything below
+// is shaped by that. What a submission may change on its own is the event's
+// numbers; anything about who takes a child home, or a child who is not on the
+// roster yet, waits for an adult. The rules live in src/lib/registration.ts.
+
+// The event's registration settings and its link. One per event.
+model RegistrationForm {
+  id      String @id @default(cuid())
+  eventId String @unique
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // Same shape and the same reasoning as ParentLink.token: 256 bits, stored as
+  // sent so the staff can copy the link again. "Turn off and issue a new one"
+  // replaces it, and the old one stops resolving at once.
+  token String @unique
+
+  intro       String? // the opening text the staff write
+  price       String? // free text: "50 ₪", "50 ₪ לילד, 80 לשניים"
+  capacity    Int? // null = no cap
+  // Approve straight away (the default — registration happens the evening
+  // before, and nobody approves forty rows at 22:00) or wait for an adult (a
+  // camp with a cap or a fee). A new child and any change to who goes home
+  // wait for an adult either way.
+  autoApprove Boolean @default(true)
+
+  // Open from openedAt (the moment the link is sent) until whichever comes
+  // first: closesAt, a moment in time the staff enter in Israel time, or
+  // closedAt, the manual "close registration" button.
+  openedAt DateTime?
+  closesAt DateTime?
+  closedAt DateTime?
+
+  // What to bring, for the whole event. Strings, not a table: there is nothing
+  // to join it to, and nobody renames "כובע". Per-day additions live on
+  // EventDay.equipment. Every event starts empty — there is no default list.
+  equipment          String[]  @default([])
+  // Last change to either list. Shown as "עודכן" when it is after openedAt,
+  // so a parent who comes back to the link sees that something changed.
+  equipmentUpdatedAt DateTime?
+
+  registrations Registration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// One child's registration to one event. A family with two children sends one
+// form and gets two rows: each child is handled on their own — matched,
+// counted against the cap, approved — because one sibling coming and the other
+// not is the ordinary case.
+model Registration {
+  id     String           @id @default(cuid())
+  formId String
+  form   RegistrationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  // The child picked from the list. null for a child typed in as new: they do
+  // not exist on the roster until an adult approves them, and then this is set.
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  // What was typed for a new child. Kept after approval as the record of what
+  // the parent sent.
+  childName     String?
+  childGrade    String?
+
+  // Who filled this in, and how to reach them. Stored here and NOT copied onto
+  // the child's record: the link is shared by the whole group, so writing it
+  // through would let anyone make their own number the one the staff ring in
+  // an emergency for somebody else's child. For a new child an adult's
+  // approval is what moves them onto the roster.
+  parentName  String
+  parentPhone String
+
+  // How the child goes home, as the parent asked. A request, not an
+  // instruction: Participant.defaultDismissal and PickupAuthorization only
+  // change when an adult approves (see reviewReasons).
+  dismissal      String // "alone" | "escort"
+  pickupName     String?
+  pickupRelation String?
+  pickupPhone    String?
+
+  note         String? // free text for the staff
+  equipmentAck Boolean @default(false)
+
+  // "approved" | "pending" | "waitlist" | "rejected". Only "approved" holds a
+  // place and reaches ExpectedAttendance; the waiting list is ordered by
+  // createdAt, which a resubmission does not move.
+  status String
+
+  // What an adult has to look at, beyond the status: "new_child",
+  // "dismissal_alone", "new_pickup", "contact_differs". Only differences from
+  // what is stored land here — a parent ticking exactly what was already true
+  // is not a request. Empty = nothing to review.
+  reviewReasons    String[]  @default([])
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  reviewedBy       User?     @relation("RegistrationReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  // A resubmission replaces the answers and bumps this. > 1 = "עודכן".
+  revision    Int      @default(1)
+  submittedAt DateTime @default(now())
+
+  days RegistrationDay[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One registration per child per event. Postgres treats NULLs as distinct,
+  // so any number of not-yet-approved new children fit alongside.
+  @@unique([formId, participantId])
+  @@index([formId, status])
+  @@index([participantId])
+}
+
+// The per-day answers of one registration. Held here, and copied into
+// ExpectedAttendance only while the registration is approved: a pending or
+// waiting-list child must not be counted, and a new child has no Participant
+// row to hang an ExpectedAttendance on yet.
+model RegistrationDay {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  eventDayId     String
+  eventDay       EventDay     @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  coming         Boolean
+  bringsFood     Boolean? // only asked when coming
+
+  @@unique([registrationId, eventDayId])
+  @@index([eventDayId])
 }

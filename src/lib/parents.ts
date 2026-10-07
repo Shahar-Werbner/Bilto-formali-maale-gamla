@@ -162,6 +162,7 @@ export type ExpectedCount = {
 export function expectedCount(
   rosteredIds: readonly string[],
   answers: readonly ExpectedAnswer[],
+  { byRegistration = false }: { byRegistration?: boolean } = {},
 ): ExpectedCount {
   const onEvent = new Set(rosteredIds);
   // An answer for a child who has since been taken off the event, or soft
@@ -184,8 +185,45 @@ export function expectedCount(
     coming,
     notComing,
     noAnswer: rostered - relevant.size,
-    expected: rostered - notComing,
+    expected: expectedHeadcount({ rostered, coming, notComing, byRegistration })
+      .expected ?? rostered,
   };
+}
+
+/**
+ * The expected number from counts already taken in the database — the shape
+ * the day screen and the staffing alert have, since they group rather than
+ * fetch every answer. One function for both rules, so the two screens cannot
+ * disagree about which one applies.
+ *
+ * **Silence means coming — unless the event takes registrations** (item 8).
+ * With a registration link the question the parents were asked is "sign up",
+ * not "tell us if you are not coming", so a child nobody registered is "not
+ * registered", not "coming": fifty children who had not signed up by Monday
+ * evening are not fifty lunches. In that case only an explicit yes counts, and
+ * the number is a real number from the first moment — zero before anyone has
+ * registered, not "unknown".
+ *
+ * Without registration the item-5 rule stands, and the number is only known
+ * once some family has answered (`null` before that — it would be the roster
+ * wearing a different label).
+ */
+export function expectedHeadcount({
+  rostered,
+  coming,
+  notComing,
+  byRegistration,
+}: {
+  rostered: number;
+  coming: number;
+  notComing: number;
+  byRegistration: boolean;
+}): { expected: number | null; byRegistration: boolean } {
+  if (byRegistration) {
+    return { expected: Math.max(0, Math.min(coming, rostered)), byRegistration };
+  }
+  if (coming + notComing === 0) return { expected: null, byRegistration };
+  return { expected: Math.max(0, rostered - notComing), byRegistration };
 }
 
 // ── Labels ──────────────────────────────────────────────────────────────────

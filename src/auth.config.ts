@@ -24,6 +24,9 @@ export const authConfig = {
       // counselor is also somebody's parent, and opening the family link from
       // their own phone has to show the child, not bounce them to the roster.
       if (nextUrl.pathname.startsWith("/p/")) return true;
+      // The registration form (item 8): open for the same reason. Its token
+      // is checked server-side in src/lib/registration-server.ts.
+      if (nextUrl.pathname.startsWith("/r/")) return true;
 
       const isPublic =
         nextUrl.pathname.startsWith("/login") ||

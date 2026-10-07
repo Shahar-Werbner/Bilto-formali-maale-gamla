@@ -57,6 +57,8 @@ type Fixture = {
   attendance: [number, number];
   /** Parents' answers for the day (item 5): [not coming, answered at all]. */
   expected: [number, number];
+  /** Item 8: the event has a registration link that has been sent. */
+  registration: boolean;
   deleted: number;
 };
 
@@ -102,6 +104,10 @@ vi.mock("@/lib/prisma", () => ({
         Promise.resolve(
           args.where.coming === false ? fixture.expected[0] : fixture.expected[1],
         ),
+    },
+    registrationForm: {
+      findMany: () =>
+        Promise.resolve(fixture.registration ? [{ eventId: fixture.day?.event.id }] : []),
     },
     user: {
       findMany: () => Promise.resolve(fixture.users),
@@ -169,6 +175,7 @@ beforeEach(() => {
     ],
     attendance: [0, 0],
     expected: [0, 0],
+    registration: false,
     deleted: 1,
   };
   upsert.mockClear();
@@ -237,6 +244,22 @@ describe("GET /api/shifts", () => {
     fixture.attendance = [40, 24];
     const data = await (await get("eventDayId=d1")).json();
     expect(data.ratio).toMatchObject({ children: 24, childrenSource: "marked" });
+  });
+
+  // Item 8: with a registration link, silence is "not registered", not
+  // "coming" — 40 on the roster and 12 registered is a staffing question
+  // about 12 children.
+  it("counts only the registered children when the event takes registrations", async () => {
+    fixture.expected = [3, 15]; // 3 said no, 12 said yes
+    expect((await (await get("eventDayId=d1")).json()).ratio).toMatchObject({
+      children: 37,
+      childrenSource: "expected",
+    });
+    fixture.registration = true;
+    expect((await (await get("eventDayId=d1")).json()).ratio).toMatchObject({
+      children: 12,
+      childrenSource: "expected",
+    });
   });
 
   it("warns when the day has counselors but no adult", async () => {

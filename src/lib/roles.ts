@@ -101,6 +101,12 @@ export const CAPABILITIES = [
   "activity:edit",
   "activity:rate",
 
+  // The registration form (item 8): setting it up, sending and closing the
+  // link, and approving what came in. An adult's, for the same reason as
+  // parent:link — the link is an unauthenticated write, and approving is what
+  // puts a new child on the roster and decides who may collect one.
+  "registration:manage",
+
   // User administration.
   "users:manage",
 ] as const;
@@ -132,6 +138,7 @@ const STAFF: Capability[] = [
   "activity:view",
   "activity:edit",
   "activity:rate",
+  "registration:manage",
 ];
 
 // A youth counselor is typically 15. They run one activity, not the session.
@@ -155,6 +162,8 @@ const STAFF: Capability[] = [
 //   parent:link     — a parent link is an unauthenticated write into a child's
 //                     record. Minting one, or turning one off, is an adult's
 //                     call; a youth counselor asks for it rather than issues it.
+//   registration:manage — approving a registration puts a child on the roster
+//                     and can change who takes them home.
 const YOUTH: Capability[] = [
   "attendance:mark",
   "roster:view",

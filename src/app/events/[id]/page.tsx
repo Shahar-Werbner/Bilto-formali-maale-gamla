@@ -8,6 +8,7 @@ import { formatDateOnly, sortByGrade } from "@/lib/attendance";
 import { isEventKind } from "@/lib/events";
 import { sessionCapabilities } from "@/lib/api-auth";
 import { LIVE_GROUP } from "@/lib/event-scope";
+import { eventUsesRegistration } from "@/lib/registration-server";
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +90,10 @@ export default async function EventPage({
     _count: { _all: true },
   });
 
+  // Item 8: with a registration link, only the children who registered are
+  // expected — see expectedHeadcount() in src/lib/parents.ts.
+  const byRegistration = await eventUsesRegistration(event.id);
+
   const expectedByDay: Record<string, { coming: number; notComing: number }> = {};
   for (const row of expectedRows) {
     const bucket = (expectedByDay[row.eventDayId] ??= { coming: 0, notComing: 0 });
@@ -144,7 +149,10 @@ export default async function EventPage({
       description: d.description,
       startTime: d.startTime,
       endTime: d.endTime,
-      expected: expectedByDay[d.id] ?? { coming: 0, notComing: 0 },
+      expected: {
+        ...(expectedByDay[d.id] ?? { coming: 0, notComing: 0 }),
+        byRegistration,
+      },
     })),
   };
 
@@ -156,6 +164,14 @@ export default async function EventPage({
         isAdmin={session?.user?.role === "admin"}
       />
       <main className="mx-auto max-w-3xl px-4 py-4">
+        {capabilities.includes("registration:manage") && (
+          <a
+            href={`/events/${event.id}/registration`}
+            className="mb-3 inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            📝 טופס הרשמה
+          </a>
+        )}
         <EventBoard
           event={data}
           groups={plainGroups}
