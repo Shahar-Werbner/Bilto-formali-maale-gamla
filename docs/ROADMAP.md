@@ -82,7 +82,7 @@
 |  ✅   | **6** | שעות אוטומטיות + דוח חודשי              | **נבנה** — ראו `docs/changes/wave3-item6-hours-report.md`. בלי מיגרציה. סוגר גם את שלוש נגיעות הייצוא שהצטברו מפריטים 1, 2 ו-3 |
 |  ✅   | **7** | מאגר פעילויות + תבניות לוז              | **נבנה** — ראו `docs/changes/wave3-item7-activity-bank.md`. **עם מיגרציה** `add_activity_bank` (תוספתית: `Activity`, `ActivityRating`, ו-`ActivitySlot.activityId` nullable). "תבניות" = העתקת לוז מיום קודם, בלי טבלה |
 |  ✅   | **8א** | טופס הרשמה — הקישור, הטופס והאישורים     | **נבנה** — ראו `docs/changes/wave3-item8a-registration.md`. **עם מיגרציה** `add_registration` (תוספתית: `RegistrationForm`, `Registration`, `RegistrationDay`, `EventDay.equipment`, `ExpectedAttendance.bringsFood`) — **כוללת את מה ש-8ב צריך** |
-|  ⬜   | **8ב** | טופס הרשמה — מסך הצוות וציוד בשער        | אחרי 8א. **בלי מיגרציה** — קורא את הסכמה ש-8א הנחית |
+|  🔨   | **8ב** | טופס הרשמה — מסך הצוות וציוד בשער        | **בעבודה** — ענף `claude/item-8b-registration-rpxpe4`. אחרי 8א. **בלי מיגרציה** — קורא את הסכמה ש-8א הנחית |
 
 ### 📌 מצב סנכרון — נכון ל-19.09
 
