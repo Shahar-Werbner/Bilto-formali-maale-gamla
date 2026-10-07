@@ -10,6 +10,7 @@ import {
   type Status,
 } from "@/lib/attendance";
 import { formatHebrewDate, formatTimeRange, hoursBetween } from "@/lib/events";
+import { expectedHeadcount } from "@/lib/parents";
 import type { Capability } from "@/lib/roles";
 import DaySchedule, { type Slot } from "./DaySchedule";
 import DayGroupsBoard from "./DayGroupsBoard";
@@ -31,8 +32,8 @@ type Day = {
   description: string | null;
   startTime: string | null;
   endTime: string | null;
-  /** What the parents said through their links (item 5). */
-  expected?: { coming: number; notComing: number };
+  /** What the parents said through their links (item 5) or the registration form (item 8). */
+  expected?: { coming: number; notComing: number; byRegistration?: boolean };
 };
 type Group = { id: string; name: string; memberIds: string[] };
 type EventData = EventSettingsData & {
@@ -540,23 +541,34 @@ export default function EventBoard({
               לא הוגדרו שעות ליום זה
             </span>
           )}
-          {/* The expected head count (item 5) — the number the kitchen cooks
-              to. It is the roster minus the children a parent actively said
-              were not coming: silence counts as coming, because cooking for
-              four too many is leftovers and counting four out who then arrive
-              is not. Shown only once a family has answered; before that it
-              would just be the roster wearing a different label. */}
+          {/* The expected head count — the number the kitchen cooks to. Two
+              rules, decided in one place (expectedHeadcount in
+              src/lib/parents.ts): without registration silence counts as
+              coming and only an explicit "no" lowers it (item 5); with a
+              registration link only the children who registered count
+              (item 8). */}
           {selectedDay.expected &&
-            selectedDay.expected.coming + selectedDay.expected.notComing > 0 && (
-              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
-                <span className="font-semibold">
-                  צפויים: {event.participants.length - selectedDay.expected.notComing}
+            (() => {
+              const e = selectedDay.expected;
+              const rostered = event.participants.length;
+              const h = expectedHeadcount({
+                rostered,
+                coming: e.coming,
+                notComing: e.notComing,
+                byRegistration: e.byRegistration ?? false,
+              });
+              if (h.expected === null) return null;
+              return (
+                <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
+                  <span className="font-semibold">
+                    {h.byRegistration ? "נרשמו" : "צפויים"}: {h.expected}
+                  </span>
+                  {` מתוך ${rostered}`}
+                  {e.notComing > 0 &&
+                    ` · ${e.notComing} ${h.byRegistration ? "אמרו" : "הודיעו"} שלא מגיעים`}
                 </span>
-                {` מתוך ${event.participants.length}`}
-                {selectedDay.expected.notComing > 0 &&
-                  ` · ${selectedDay.expected.notComing} הודיעו שלא מגיעים`}
-              </span>
-            )}
+              );
+            })()}
 
           <a
             href={`/api/event-days/${selectedDayId}/export`}

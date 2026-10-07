@@ -59,6 +59,9 @@ export async function POST(request: Request) {
           // a family that did nothing wrong.
           parentLinks: { select: { id: true } },
           expected: { select: { id: true, eventDayId: true } },
+          // Item 8. A registration left on the retiring record would vanish
+          // from the event's list — a child who signed up and then "did not".
+          registrations: { select: { id: true, formId: true } },
         },
       }),
     ]);
@@ -90,8 +93,13 @@ export async function POST(request: Request) {
 
     // Dismissals and day-group assignments are unique per (day, child), same as
     // attendance, so they follow the same rule: the survivor's row stands.
-    const [keepDismissals, keepDayGroups, keepAuthorizations, keepExpected] =
-      await Promise.all([
+    const [
+      keepDismissals,
+      keepDayGroups,
+      keepAuthorizations,
+      keepExpected,
+      keepRegistrations,
+    ] = await Promise.all([
         prisma.dismissal.findMany({
           where: { participantId: keepId },
           select: { eventDayId: true },
@@ -107,6 +115,10 @@ export async function POST(request: Request) {
         prisma.expectedAttendance.findMany({
           where: { participantId: keepId },
           select: { eventDayId: true },
+        }),
+        prisma.registration.findMany({
+          where: { participantId: keepId },
+          select: { formId: true },
         }),
       ]);
 
@@ -126,6 +138,14 @@ export async function POST(request: Request) {
       merge.expected,
       (e) => e.eventDayId,
       keepExpected.map((e) => e.eventDayId),
+    );
+
+    // One registration per child per event: where both records registered
+    // for the same event, the survivor's stands, like every per-day row above.
+    const registrations = splitByExistingKeys(
+      merge.registrations,
+      (r) => r.formId,
+      keepRegistrations.map((r) => r.formId),
     );
 
     // Pickup authorizations carry no unique constraint — the duplicate here is
@@ -191,6 +211,13 @@ export async function POST(request: Request) {
       prisma.parentLink.updateMany({
         where: { id: { in: merge.parentLinks.map((l) => l.id) } },
         data: { participantId: keepId },
+      }),
+      prisma.registration.updateMany({
+        where: { id: { in: registrations.move.map((r) => r.id) } },
+        data: { participantId: keepId },
+      }),
+      prisma.registration.deleteMany({
+        where: { id: { in: registrations.drop.map((r) => r.id) } },
       }),
       prisma.participant.update({
         where: { id: keepId },

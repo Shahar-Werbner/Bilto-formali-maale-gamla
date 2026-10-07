@@ -74,6 +74,10 @@ describe("capabilities", () => {
     ["schedule:edit", "writing straight into the live schedule"],
     ["schedule:approve", "signing off a plan — including their own"],
     ["activity:edit", "rewriting the bank the next cohort plans from"],
+    [
+      "registration:manage",
+      "approving a registration — it puts a child on the roster and can change who takes them home",
+    ],
   ] as const)("denies youth %s — %s", (capability, _why) => {
     expect(can("youth", capability)).toBe(false);
   });
@@ -145,6 +149,8 @@ const UNGUARDED: Record<string, string> = {
     "self-registration, guarded by the signup code, rate limiting and a timing-safe comparison instead",
   "parent/[token]/route.ts":
     "the parents' endpoint, and the reason item 5 has no parent accounts: the 256-bit token in the URL is the credential. It is guarded by that token, by a shape check before any query, by a rate limit on both verbs, and by a blast radius of one boolean and one note for one child on days that child is already on — see the header there",
+  "registration/[token]/route.ts":
+    "the registration form's endpoint (item 8). The link goes to the parents' WhatsApp group, so the 256-bit token is the only credential; it is shape-checked before any query, rate limited, refused once the form is closed, and nothing it writes about going home or contacts reaches a child's record without an adult's approval — see src/lib/registration.ts",
 };
 
 function routeFiles(dir: string, base = ""): string[] {

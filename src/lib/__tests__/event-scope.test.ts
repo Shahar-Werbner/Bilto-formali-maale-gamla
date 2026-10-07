@@ -48,6 +48,12 @@ const SCOPED_MODELS = [
   // a rating reaches its slot, and through it a day whose event may be gone.
   "activity",
   "activityRating",
+  // Item 8. A form hangs off an event, a registration off a form and a child,
+  // and a registration day off a day — none of their ids says whether the
+  // event or the child above is still there.
+  "registrationForm",
+  "registration",
+  "registrationDay",
 ];
 
 // Routes that legitimately need no scoping. Each one states why, because an
@@ -61,6 +67,8 @@ const EXEMPT: Record<string, string> = {
   "register/route.ts": "creates a User; no event or child is resolved",
   "activities/route.ts":
     "POST only creates; GET lists through loadBank() in src/lib/activity-query.ts, which filters Activity.deletedAt and counts ratings and uses only on live events",
+  "registration/[token]/route.ts":
+    "it resolves nothing by id itself: the token goes through resolveRegistrationForm() and the write through submitRegistration(), both in src/lib/registration-server.ts, which refuse a deleted event (answering as an unknown token) and look children up with deletedAt: null",
   "parent/[token]/route.ts":
     "it resolves nothing by id itself: the token goes through resolveParentLink() and the day through parentMayWriteDay(), both in src/lib/parent-link.ts, which filter the child's deletedAt and the event's — and a link whose child was deleted answers exactly as an unknown token does",
 };
