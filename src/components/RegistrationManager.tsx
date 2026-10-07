@@ -59,11 +59,14 @@ export default function RegistrationManager({
   form,
   registrations,
   canApplyContact,
+  overview,
 }: {
   event: { id: string; name: string; kind: "camp" | "recurring"; days: Day[] };
   form: FormData | null;
   registrations: StaffRegistration[];
   canApplyContact: boolean;
+  /** Who registered, food per day, who has not (item 8b) — shown once the link is out. */
+  overview?: React.ReactNode;
 }) {
   const router = useRouter();
   const [origin, setOrigin] = useState("");
@@ -75,7 +78,11 @@ export default function RegistrationManager({
   const link = form && origin ? registrationUrl(origin, form.token) : "";
   const queue = registrations.filter((r) => r.needsReview && r.status !== "waitlist");
   const waitlist = registrations.filter((r) => r.status === "waitlist");
-  const approved = registrations.filter((r) => r.status === "approved");
+  // Holding a place: approved and coming on some day — the same rule the cap
+  // is enforced with, and the same "נרשמו" the overview above shows.
+  const placesHeld = registrations.filter(
+    (r) => r.status === "approved" && r.days.some((d) => d.coming),
+  ).length;
 
   async function copyLink() {
     try {
@@ -229,15 +236,18 @@ export default function RegistrationManager({
         </section>
       )}
 
+      {form && form.state !== "draft" && overview}
+
       {form && form.state !== "draft" && (
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold text-slate-900">
             ממתינים לאישור{queue.length > 0 ? ` (${queue.length})` : ""}
           </h2>
-          <p className="text-xs text-slate-500">
-            {approved.length} רשומים · {waitlist.length} ברשימת המתנה
-            {form.capacity !== null ? ` · מכסה ${form.capacity}` : ""}
-          </p>
+          {form.capacity !== null && (
+            <p className="text-xs text-slate-500">
+              מכסה {form.capacity} · {placesHeld} תופסים מקום
+            </p>
+          )}
           {queue.length === 0 ? (
             <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
               אין כרגע מה לאשר.

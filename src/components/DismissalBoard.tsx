@@ -31,6 +31,8 @@ export type DismissalChild = {
    * adult who signs the child out, exactly as a phone call would.
    */
   parentSaid: { coming: boolean; note: string | null } | null;
+  /** The free note from the registration form (item 8b), when this child registered. */
+  registrationNote?: string | null;
   dismissal: {
     method: DismissalMethod;
     pickedUpByName: string | null;
@@ -316,6 +318,13 @@ export default function DismissalBoard({
                   <p className="mx-4 mb-2 rounded-lg bg-late/10 px-3 py-2 text-xs text-late">
                     <span className="font-semibold">ההורה הודיע/ה: </span>
                     {c.parentSaid.note}
+                  </p>
+                )}
+
+                {c.registrationNote && c.registrationNote !== c.parentSaid?.note && (
+                  <p className="mx-4 mb-2 rounded-lg bg-late/10 px-3 py-2 text-xs text-late">
+                    <span className="font-semibold">בטופס ההרשמה: </span>
+                    {c.registrationNote}
                   </p>
                 )}
 

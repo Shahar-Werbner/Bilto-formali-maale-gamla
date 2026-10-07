@@ -10,6 +10,7 @@ import {
   isDismissalException,
   isDismissalMethod,
 } from "@/lib/dismissal";
+import { hidePhones } from "@/lib/registration-overview";
 
 // Signing children out of a session: the counterpart to attendance, and the
 // part of this system that is safety-critical rather than administrative.
@@ -65,7 +66,7 @@ export async function GET(request: Request) {
     });
     if (!day) return eventDayNotFound();
 
-    const [records, expected] = await Promise.all([
+    const [records, expected, registrations] = await Promise.all([
       prisma.dismissal.findMany({
         where: { eventDayId },
         select: {
@@ -89,7 +90,27 @@ export async function GET(request: Request) {
         where: { eventDayId, participant: { deletedAt: null } },
         select: { participantId: true, coming: true, note: true },
       }),
+      // The free note from the registration form (item 8b) — "אבא אוסף
+      // ב-12", "לא לתת ללכת עם אחיו". Same standing as the morning message:
+      // something a parent said, not a decision. Only an approved
+      // registration, coming today; the day itself is already known live.
+      prisma.registration.findMany({
+        where: {
+          status: "approved",
+          note: { not: null },
+          participantId: { not: null },
+          participant: { deletedAt: null },
+          days: { some: { eventDayId, coming: true } },
+        },
+        select: { participantId: true, note: true },
+      }),
     ]);
+    const registrationNoteBy = new Map(
+      registrations.map((r) => [
+        r.participantId,
+        withPhones ? (r.note ?? "") : hidePhones(r.note ?? ""),
+      ]),
+    );
     const byParticipant = new Map(records.map((r) => [r.participantId, r]));
     const expectedBy = new Map(expected.map((e) => [e.participantId, e]));
 
@@ -105,6 +126,7 @@ export async function GET(request: Request) {
         parentSaid: said
           ? { coming: said.coming, note: said.note }
           : null,
+        registrationNote: registrationNoteBy.get(p.id)?.trim() || null,
         dismissal: record
           ? {
               method: dismissalMethodOf(record.method),
